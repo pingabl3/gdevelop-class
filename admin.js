@@ -254,16 +254,35 @@ export async function cleanupTempGists(token, maxAgeMinutes = 10) {
 // ---------------------------------------------------------------------------
 // Page settings (the students' hand-in link), stored as config.json in the repo.
 
-export async function saveConfig(token, repo, branch, config) {
+/**
+ * Change the page settings. `update` receives the current settings from the
+ * repository (not a possibly-stale copy) and returns the new settings.
+ */
+export async function saveConfig(token, repo, branch, update, message = 'Update page settings') {
   let sha;
+  let current = {};
   try {
-    sha = (await gh(token, 'GET', `/repos/${repo}/contents/config.json?ref=${branch}`)).sha;
+    const file = await gh(token, 'GET', `/repos/${repo}/contents/config.json?ref=${branch}`);
+    sha = file.sha;
+    current = JSON.parse(atobUtf8(file.content.replace(/\n/g, '')));
   } catch (e) {
     if (e.status !== 404) throw e;
   }
-  const text = JSON.stringify(config, null, 2);
+  const next = update(current);
+  const text = JSON.stringify(next, null, 2);
   const content = btoa(String.fromCharCode(...new TextEncoder().encode(text)));
   await gh(token, 'PUT', `/repos/${repo}/contents/config.json`, {
-    message: 'Update page settings', content, branch, ...(sha ? { sha } : {}),
+    message, content, branch, ...(sha ? { sha } : {}),
   });
+  return next;
+}
+
+/** Set (or with an empty name, reset) the name shown for a project on the page. */
+export function renameProject(token, repo, branch, folder, name) {
+  return saveConfig(token, repo, branch, cfg => {
+    const titles = { ...(cfg.titles || {}) };
+    if (name) titles[folder] = name;
+    else delete titles[folder];
+    return { ...cfg, titles };
+  }, name ? `Rename project: ${folder} → ${name}` : `Reset project name: ${folder}`);
 }

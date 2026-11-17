@@ -28,6 +28,12 @@ def last_changed(folder: Path) -> str:
         return ""
 
 
+# Names the teacher changed on the class page (folder -> name).
+try:
+    titles = json.loads((ROOT / "config.json").read_text(encoding="utf-8")).get("titles", {})
+except Exception:
+    titles = {}
+
 projects = []
 for game_json in sorted(PROJECTS_DIR.rglob("*.json")):
     try:
@@ -42,7 +48,8 @@ for game_json in sorted(PROJECTS_DIR.rglob("*.json")):
     folder = game_json.parent.relative_to(PROJECTS_DIR).as_posix()
     projects.append(
         {
-            "name": props.get("name") or folder,
+            "name": titles.get(folder) or props.get("name") or folder,
+            "originalName": props.get("name") or folder,
             "description": props.get("description", ""),
             "folder": folder,
             "scenes": len(data.get("layouts", [])),

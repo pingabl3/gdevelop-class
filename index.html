@@ -169,7 +169,7 @@
 <script type="module">
   import {
     readProjectZip, checkToken, addProject, removeProject,
-    packProjectZip, createTempGist, deleteGist, cleanupTempGists, saveConfig,
+    packProjectZip, createTempGist, deleteGist, cleanupTempGists, saveConfig, renameProject,
   } from './admin.js';
 
   const EDITOR = 'https://editor.gdevelop.io/?project=';
@@ -224,19 +224,73 @@
         el('a', { className: 'btn', href: link, target: '_blank', rel: 'noopener', textContent: 'Open in GDevelop' }),
         copyBtn,
       ];
+      const title = el('h3', { textContent: p.name });
+      const card = el('div', { className: 'card' });
       if (isTeacher()) {
+        const rn = el('button', { className: 'btn secondary', textContent: 'Rename' });
+        rn.onclick = () => startRename(p, card, title);
         const rm = el('button', { className: 'btn danger', textContent: 'Remove' });
         rm.onclick = () => onRemove(p, rm);
-        buttons.push(rm);
+        buttons.push(rn, rm);
       }
       const bits = [`${p.scenes} scene${p.scenes === 1 ? '' : 's'}`];
       if (p.updated) bits.push('added ' + formatDate(p.updated));
-      list.append(el('div', { className: 'card' }, [
-        el('h3', { textContent: p.name }),
+      card.append(
+        title,
         el('p', { textContent: p.description || '' }),
         el('span', { className: 'meta', textContent: bits.join(' · ') }),
         el('div', { className: 'row' }, buttons),
-      ]));
+      );
+      list.append(card);
+    });
+  }
+
+  // ---------- Rename ----------
+  function startRename(p, card, title) {
+    const input = el('input', { type: 'text', value: p.name, maxLength: 80 });
+    const save = el('button', { className: 'btn', textContent: 'Save' });
+    const cancel = el('button', { className: 'btn secondary', textContent: 'Cancel' });
+    const kids = [save, cancel];
+    const original = p.originalName || p.name;
+    if (original !== p.name) {
+      const reset = el('button', { className: 'linkbtn', textContent: `Reset to "${original}"` });
+      reset.onclick = () => doRename(p, '');
+      kids.push(reset);
+    }
+    const editor = el('div', {}, [input, el('div', { className: 'row', style: 'margin-top:8px' }, kids)]);
+    title.replaceWith(editor);
+    input.focus();
+    input.select();
+
+    const doRename = async (proj, newName) => {
+      const wanted = newName === original ? '' : newName;
+      save.disabled = cancel.disabled = true;
+      save.textContent = 'Saving…';
+      try {
+        await renameProject(token, manifest.repo, manifest.branch, proj.folder, wanted);
+        const shown = wanted || original;
+        proj.name = shown;
+        render();
+        waitForChange(
+          m => m.projects.some(x => x.folder === proj.folder && x.name === shown),
+          `Renamed to "${shown}".`
+        );
+      } catch (e) {
+        save.disabled = cancel.disabled = false;
+        save.textContent = 'Save';
+        if (!handleAuthError(e, $('listStatus'))) setStatus($('listStatus'), e.message, 'error');
+      }
+    };
+    save.onclick = () => {
+      const name = input.value.trim();
+      if (!name) { input.focus(); return; }
+      if (name === p.name) { render(); return; }
+      doRename(p, name);
+    };
+    cancel.onclick = () => render();
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') save.onclick();
+      if (e.key === 'Escape') render();
     });
   }
 
@@ -397,8 +451,7 @@
     if (url && !/^https:\/\//.test(url)) { setStatus(status, 'The link should start with https://', 'error'); return; }
     setStatus(status, 'Saving…');
     try {
-      config = { ...config, handInUrl: url };
-      await saveConfig(token, manifest.repo, manifest.branch, config);
+      config = await saveConfig(token, manifest.repo, manifest.branch, cfg => ({ ...cfg, handInUrl: url }));
       showHandIn();
       setStatus(status, url ? 'Saved. Students will see the Hand in button in about a minute.' : 'Saved. The Hand in button will disappear in about a minute.', 'ok');
     } catch (e) {
