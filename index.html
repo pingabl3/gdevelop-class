@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GDevelop Class Projects</title>
+<style>
+  :root {
+    --bg: #f6f5fb; --card: #ffffff; --text: #1d1b2e; --muted: #5d5a73;
+    --border: #e2e0ee; --accent: #5b3cf5; --accent-text: #ffffff; --soft: #eeeafe;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14131c; --card: #1e1c2a; --text: #ecebf5; --muted: #a8a5bf;
+      --border: #312e44; --accent: #8b74ff; --accent-text: #0f0d18; --soft: #2a2545;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.9rem; margin: 0 0 4px; }
+  h2 { font-size: 1.15rem; margin: 40px 0 12px; }
+  .lead { color: var(--muted); margin: 0 0 24px; }
+  .steps {
+    background: var(--soft); border-radius: 12px; padding: 14px 18px; margin-bottom: 8px;
+  }
+  .steps ol { margin: 6px 0 0; padding-left: 20px; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .card h3 { margin: 0; font-size: 1.05rem; }
+  .card p { margin: 0; color: var(--muted); font-size: .92rem; flex: 1; }
+  .meta { font-size: .8rem; color: var(--muted); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer;
+    font: inherit; font-size: .92rem; font-weight: 600; text-decoration: none;
+    background: var(--accent); color: var(--accent-text);
+  }
+  .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+  input[type=text] {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); font: inherit;
+  }
+  .out { word-break: break-all; font-size: .85rem; color: var(--muted); }
+  .empty { color: var(--muted); }
+  code { background: var(--soft); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>GDevelop Class Projects</h1>
+  <p class="lead">Starter projects and examples you can open, edit and keep.</p>
+
+  <div class="steps">
+    <strong>Students: how to get your own copy</strong>
+    <ol>
+      <li>Log in at <a href="https://editor.gdevelop.io" target="_blank" rel="noopener">editor.gdevelop.io</a> first.</li>
+      <li>Click <em>Open in GDevelop</em> on a project below.</li>
+      <li>In GDevelop, choose <strong>File → Save as → GDevelop Cloud</strong>. Now it's yours to change.</li>
+    </ol>
+  </div>
+
+  <h2>Projects</h2>
+  <div id="list" class="grid"><p class="empty">Loading…</p></div>
+
+  <h2>Make a link (teacher)</h2>
+  <p class="lead">Paste the GitHub address of any <code>game.json</code> to get an "Open in GDevelop" link.</p>
+  <input id="src" type="text" placeholder="https://github.com/…/blob/main/projects/my-game/game.json">
+  <div class="row" style="margin-top:10px">
+    <a id="open" class="btn" href="#" target="_blank" rel="noopener" hidden>Open in GDevelop</a>
+    <button id="copy" class="btn secondary" hidden>Copy link</button>
+  </div>
+  <p id="out" class="out"></p>
+</main>
+<script>
+  const EDITOR = 'https://editor.gdevelop.io/?project=';
+  const editorLink = url => EDITOR + encodeURIComponent(url);
+
+  function toRaw(input) {
+    const s = input.trim();
+    const m = s.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:blob|raw)\/(.+)$/);
+    if (m) return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}`;
+    if (/^https?:\/\//.test(s)) return s;
+    return '';
+  }
+
+  async function copy(text, btn) {
+    try { await navigator.clipboard.writeText(text); } catch (e) { prompt('Copy this link:', text); return; }
+    const old = btn.textContent; btn.textContent = 'Copied!';
+    setTimeout(() => (btn.textContent = old), 1500);
+  }
+
+  function el(tag, props = {}, kids = []) {
+    const n = Object.assign(document.createElement(tag), props);
+    kids.forEach(k => n.append(k));
+    return n;
+  }
+
+  fetch('projects.json', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(({ projects }) => {
+      const list = document.getElementById('list');
+      list.textContent = '';
+      if (!projects.length) {
+        list.append(el('p', { className: 'empty', textContent: 'No projects yet.' }));
+        return;
+      }
+      projects.forEach(p => {
+        const link = editorLink(p.projectUrl);
+        const copyBtn = el('button', { className: 'btn secondary', textContent: 'Copy link' });
+        copyBtn.onclick = () => copy(link, copyBtn);
+        list.append(el('div', { className: 'card' }, [
+          el('h3', { textContent: p.name }),
+          el('p', { textContent: p.description || '' }),
+          el('span', { className: 'meta', textContent: `${p.scenes} scene${p.scenes === 1 ? '' : 's'} · ${p.folder}` }),
+          el('div', { className: 'row' }, [
+            el('a', { className: 'btn', href: link, target: '_blank', rel: 'noopener', textContent: 'Open in GDevelop' }),
+            copyBtn,
+          ]),
+        ]));
+      });
+    })
+    .catch(() => {
+      document.getElementById('list').innerHTML = '<p class="empty">Could not load the project list.</p>';
+    });
+
+  const src = document.getElementById('src'), open = document.getElementById('open'),
+        copyBtn = document.getElementById('copy'), out = document.getElementById('out');
+  src.addEventListener('input', () => {
+    const raw = toRaw(src.value);
+    const ok = !!raw;
+    open.hidden = copyBtn.hidden = !ok;
+    out.textContent = ok ? editorLink(raw) : '';
+    if (ok) open.href = editorLink(raw);
+  });
+  copyBtn.onclick = () => copy(out.textContent, copyBtn);
+</script>
+</body>
+</html>
