@@ -25,6 +25,21 @@ The token is saved only in that browser. Use **Forget token** on shared computer
 
 You can still add a project by hand: unzip it and upload the folder into `projects/` on GitHub.
 
+## Students handing work in (private)
+
+Student work never goes into this public repository.
+
+1. Make a Google Classroom assignment (or Google Form with a file upload) for the hand-in.
+2. In the Teacher panel, paste its link under **Hand-in link for students** and click Save.
+   Students now see a **Hand in** button with instructions: *Download a copy* in GDevelop, then attach the zip.
+3. To look at a submission, download the student's zip from Classroom and drop it on
+   **Open a student's project (private)**. Click **Open in GDevelop**.
+
+To open it, the page packs the project into one file and puts it in a **secret gist** on your
+GitHub account (not listed anywhere). The gist is deleted 2 minutes after you click Open, and
+any leftover copies are deleted the next time you open the Teacher panel.
+This needs your token to have **Gists: Read and write**.
+
 ## What students do
 
 1. Log in at editor.gdevelop.io.

@@ -93,6 +93,7 @@
           <li>Name it <em>GDevelop class page</em> and pick an expiry (for example, the end of the year).</li>
           <li>Under <strong>Repository access</strong>, choose <em>Only select repositories</em> → <code id="repoName">gdevelop-class</code>.</li>
           <li>Under <strong>Permissions → Repository permissions</strong>, set <strong>Contents</strong> to <em>Read and write</em>.</li>
+          <li>Under <strong>Permissions → Account permissions</strong>, set <strong>Gists</strong> to <em>Read and write</em>. This is used to open students' projects privately.</li>
           <li>Click <strong>Generate token</strong>, copy it, and paste it below.</li>
         </ol>
       </details>
@@ -111,6 +112,23 @@
         <strong>Choose a .zip</strong> or drag it here
       </label>
       <p id="uploadStatus" class="status"></p>
+
+      <h3>Open a student's project (private)</h3>
+      <p class="small">Download the student's .zip from Google Classroom, then drop it here. It opens in GDevelop and is <strong>not</strong> added to this page.</p>
+      <label id="sdrop" class="drop">
+        <input id="szip" type="file" accept=".zip,application/zip" hidden>
+        <strong>Choose a student's .zip</strong> or drag it here
+      </label>
+      <p id="studentStatus" class="status"></p>
+      <div class="row"><a id="studentOpen" class="btn" href="#" target="_blank" rel="noopener" hidden>Open in GDevelop</a></div>
+
+      <h3>Hand-in link for students</h3>
+      <p class="small">Paste the link to your Google Classroom assignment (or Google Form). Students see a <em>Hand in</em> button with instructions. Leave it empty to hide the button.</p>
+      <div class="row">
+        <input id="handIn" type="text" placeholder="https://classroom.google.com/c/…/a/…" style="flex:1;min-width:200px">
+        <button id="saveHandIn" class="btn">Save</button>
+      </div>
+      <p id="handInStatus" class="status"></p>
 
       <h3>Make a link to any game.json</h3>
       <input id="src" type="text" placeholder="https://github.com/…/blob/main/projects/my-game/game.json">
@@ -133,6 +151,15 @@
     </ol>
   </div>
 
+  <div id="handInPanel" class="panel" hidden>
+    <strong>Students: handing in your project</strong>
+    <ol>
+      <li>In GDevelop, open your project and choose <strong>File → Save as → Download a copy</strong>.</li>
+      <li>Click <em>Hand in</em> below and attach the .zip file. Only your teacher can see it.</li>
+    </ol>
+    <div class="row" style="margin-top:10px"><a id="handInLink" class="btn" href="#" target="_blank" rel="noopener">Hand in</a></div>
+  </div>
+
   <h2>Projects</h2>
   <p id="listStatus" class="status small"></p>
   <div id="list" class="grid"><p class="empty">Loading…</p></div>
@@ -140,7 +167,10 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script type="module">
-  import { readProjectZip, checkToken, addProject, removeProject } from './admin.js';
+  import {
+    readProjectZip, checkToken, addProject, removeProject,
+    packProjectZip, createTempGist, deleteGist, cleanupTempGists, saveConfig,
+  } from './admin.js';
 
   const EDITOR = 'https://editor.gdevelop.io/?project=';
   const TOKEN_KEY = 'gdclass-token';
@@ -318,6 +348,64 @@
     }
   }
 
+  // ---------- Open a student's project privately ----------
+  let studentBusy = false;
+  async function onStudentZip(file) {
+    if (!file || studentBusy) return;
+    const status = $('studentStatus'), openBtn = $('studentOpen');
+    openBtn.hidden = true;
+    if (!/\.zip$/i.test(file.name)) { setStatus(status, 'Please choose a .zip file.', 'error'); return; }
+    studentBusy = true;
+    try {
+      setStatus(status, `Reading ${file.name}…`);
+      const packed = await packProjectZip(window.JSZip, await file.arrayBuffer());
+      setStatus(status, `Preparing "${packed.name}"…`);
+      const gist = await createTempGist(token, packed.name, packed.text);
+      const warn = packed.missing.length ? ` ${packed.missing.length} file(s) weren't in the zip, so some images or sounds may be missing.` : '';
+      setStatus(status, `"${packed.name}" is ready.${warn}`, packed.missing.length ? 'error' : 'ok');
+      openBtn.href = editorLink(gist.url);
+      openBtn.hidden = false;
+      // Delete the temporary copy once GDevelop has had time to load it.
+      openBtn.onclick = () => {
+        setTimeout(() => deleteGist(token, gist.id).catch(() => {}), 120000);
+        setTimeout(() => { openBtn.hidden = true; setStatus(status, `Opened "${packed.name}". The temporary copy is deleted after 2 minutes.`, 'ok'); }, 300);
+      };
+    } catch (e) {
+      if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
+    } finally {
+      studentBusy = false;
+      $('szip').value = '';
+    }
+  }
+  $('szip').onchange = e => onStudentZip(e.target.files[0]);
+  const sdrop = $('sdrop');
+  sdrop.addEventListener('dragover', e => { e.preventDefault(); sdrop.classList.add('over'); });
+  sdrop.addEventListener('dragleave', () => sdrop.classList.remove('over'));
+  sdrop.addEventListener('drop', e => { e.preventDefault(); sdrop.classList.remove('over'); onStudentZip(e.dataTransfer.files[0]); });
+
+  // ---------- Hand-in link ----------
+  let config = {};
+  function showHandIn() {
+    const url = (config.handInUrl || '').trim();
+    $('handInPanel').hidden = !url;
+    if (url) $('handInLink').href = url;
+    $('handIn').value = url;
+  }
+  $('saveHandIn').onclick = async () => {
+    const url = $('handIn').value.trim();
+    const status = $('handInStatus');
+    if (url && !/^https:\/\//.test(url)) { setStatus(status, 'The link should start with https://', 'error'); return; }
+    setStatus(status, 'Saving…');
+    try {
+      config = { ...config, handInUrl: url };
+      await saveConfig(token, manifest.repo, manifest.branch, config);
+      showHandIn();
+      setStatus(status, url ? 'Saved. Students will see the Hand in button in about a minute.' : 'Saved. The Hand in button will disappear in about a minute.', 'ok');
+    } catch (e) {
+      if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
+    }
+  };
+
   // ---------- Make a link ----------
   function toRaw(input) {
     const s = input.trim();
@@ -335,11 +423,18 @@
   $('copy').onclick = () => copy($('out').textContent, $('copy'));
 
   // ---------- Start ----------
+  fetch('config.json?t=' + Date.now(), { cache: 'no-store' })
+    .then(r => (r.ok ? r.json() : {}))
+    .catch(() => ({}))
+    .then(c => { config = c || {}; showHandIn(); });
+
   loadManifest()
     .then(m => {
       manifest = m;
       $('repoName').textContent = m.repo.split('/')[1] || 'gdevelop-class';
       showTeacher();
+      // Tidy up temporary copies of student projects left from earlier sessions.
+      if (token) cleanupTempGists(token).catch(() => {});
     })
     .catch(() => { $('list').innerHTML = '<p class="empty">Could not load the project list.</p>'; });
 </script>

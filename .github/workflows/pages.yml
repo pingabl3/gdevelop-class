@@ -30,6 +30,7 @@ jobs:
         run: |
           mkdir _site
           cp index.html admin.js projects.json _site/
+          if [ -f config.json ]; then cp config.json _site/; fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

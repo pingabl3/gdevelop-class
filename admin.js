@@ -166,3 +166,104 @@ export async function removeProject(token, repo, branch, folder, name) {
   const entries = paths.map(path => ({ path, mode: '100644', type: 'blob', sha: null }));
   await commitTree(token, repo, branch, base, entries, `Remove project: ${name || folder}`);
 }
+
+// ---------------------------------------------------------------------------
+// Opening a student's project privately.
+// The zip never goes into the public repository. Its images and sounds are
+// packed into one project file, put in a *secret* gist on the teacher's
+// account just long enough for GDevelop to load it, then deleted.
+
+const TEMP_PREFIX = 'gdclass-temp: ';
+
+const MIME = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+  svg: 'image/svg+xml', bmp: 'image/bmp', mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav',
+  aac: 'audio/aac', m4a: 'audio/mp4', ttf: 'font/ttf', otf: 'font/otf', woff: 'font/woff',
+  woff2: 'font/woff2', json: 'application/json', txt: 'text/plain', fnt: 'text/plain',
+  xml: 'text/xml', glb: 'model/gltf-binary', mp4: 'video/mp4', webm: 'video/webm', atlas: 'text/plain',
+};
+const mimeFor = path => MIME[(path.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
+const isAbsoluteUrl = s => /^(https?:|ftp:|data:|blob:)/i.test(s);
+
+/**
+ * Turn a "Download a copy" zip into one self-contained project file.
+ * Returns { name, text, missing: [resource names not found in the zip] }.
+ */
+export async function packProjectZip(JSZip, data) {
+  const { name, files } = await readProjectZip(JSZip, data);
+  const byPath = new Map(files.map(f => [f.path, f.base64]));
+  const project = JSON.parse(atobUtf8(byPath.get('game.json')));
+  const missing = [];
+  const find = file => {
+    const tries = [file, file.replace(/\\/g, '/'), file.replace(/^\.\//, '')];
+    try { tries.push(decodeURIComponent(file)); } catch (e) {}
+    for (const t of tries) if (byPath.has(t)) return t;
+    return null;
+  };
+  for (const res of (project.resources && project.resources.resources) || []) {
+    if (!res.file || isAbsoluteUrl(res.file)) continue;
+    const hit = find(res.file);
+    if (hit) res.file = `data:${mimeFor(hit)};base64,${byPath.get(hit)}`;
+    else missing.push(res.name || res.file);
+  }
+  return { name, text: JSON.stringify(project), missing };
+}
+
+function atobUtf8(b64) {
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+/** Put the packed project in a secret gist. Returns { id, url }. */
+export async function createTempGist(token, name, text) {
+  let gist;
+  try {
+    gist = await gh(token, 'POST', '/gists', {
+      public: false,
+      description: TEMP_PREFIX + name,
+      files: { 'game.json': { content: text } },
+    });
+  } catch (e) {
+    if (e.status === 403 || e.status === 404) {
+      const err = new Error('Your token needs the Gists permission (Read and write). Make a new token with it and paste it in.');
+      err.status = 403;
+      throw err;
+    }
+    if (e.status === 422) throw new Error('This project is too big to open this way. Open the zip in the GDevelop desktop app instead.');
+    throw e;
+  }
+  return { id: gist.id, url: gist.files['game.json'].raw_url };
+}
+
+export async function deleteGist(token, id) {
+  try { await gh(token, 'DELETE', `/gists/${id}`); } catch (e) { if (e.status !== 404) throw e; }
+}
+
+/** Delete any temporary gists older than maxAgeMinutes (left over from earlier sessions). */
+export async function cleanupTempGists(token, maxAgeMinutes = 10) {
+  const gists = await gh(token, 'GET', '/gists?per_page=100');
+  const cutoff = Date.now() - maxAgeMinutes * 60 * 1000;
+  const old = gists.filter(
+    g => (g.description || '').startsWith(TEMP_PREFIX) && new Date(g.created_at).getTime() < cutoff
+  );
+  for (const g of old) await deleteGist(token, g.id);
+  return old.length;
+}
+
+// ---------------------------------------------------------------------------
+// Page settings (the students' hand-in link), stored as config.json in the repo.
+
+export async function saveConfig(token, repo, branch, config) {
+  let sha;
+  try {
+    sha = (await gh(token, 'GET', `/repos/${repo}/contents/config.json?ref=${branch}`)).sha;
+  } catch (e) {
+    if (e.status !== 404) throw e;
+  }
+  const text = JSON.stringify(config, null, 2);
+  const content = btoa(String.fromCharCode(...new TextEncoder().encode(text)));
+  await gh(token, 'PUT', `/repos/${repo}/contents/config.json`, {
+    message: 'Update page settings', content, branch, ...(sha ? { sha } : {}),
+  });
+}
