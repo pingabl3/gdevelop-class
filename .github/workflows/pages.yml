@@ -22,12 +22,14 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: List projects
         run: python3 scripts/build_manifest.py
       - name: Prepare site
         run: |
           mkdir _site
-          cp index.html projects.json _site/
+          cp index.html admin.js projects.json _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

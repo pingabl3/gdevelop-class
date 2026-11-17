@@ -8,11 +8,13 @@
   :root {
     --bg: #f6f5fb; --card: #ffffff; --text: #1d1b2e; --muted: #5d5a73;
     --border: #e2e0ee; --accent: #5b3cf5; --accent-text: #ffffff; --soft: #eeeafe;
+    --danger: #c42b4b; --ok: #1d7a46;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #14131c; --card: #1e1c2a; --text: #ecebf5; --muted: #a8a5bf;
       --border: #312e44; --accent: #8b74ff; --accent-text: #0f0d18; --soft: #2a2545;
+      --danger: #ff7a93; --ok: #6fd69a;
     }
   }
   * { box-sizing: border-box; }
@@ -22,43 +24,107 @@
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
   main { max-width: 880px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   h1 { font-size: 1.9rem; margin: 0 0 4px; }
-  h2 { font-size: 1.15rem; margin: 40px 0 12px; }
+  h2 { font-size: 1.15rem; margin: 36px 0 12px; }
+  h3 { margin: 0; }
+  a { color: var(--accent); }
   .lead { color: var(--muted); margin: 0 0 24px; }
-  .steps {
-    background: var(--soft); border-radius: 12px; padding: 14px 18px; margin-bottom: 8px;
-  }
-  .steps ol { margin: 6px 0 0; padding-left: 20px; }
+  .panel { background: var(--soft); border-radius: 12px; padding: 14px 18px; margin-bottom: 8px; }
+  .panel ol { margin: 6px 0 0; padding-left: 20px; }
+  .teacher { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin: 0 0 20px; }
+  .teacher h2 { margin: 0 0 8px; }
+  .teacher h3 { font-size: 1rem; margin: 18px 0 8px; }
   .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
   .card {
     background: var(--card); border: 1px solid var(--border); border-radius: 12px;
     padding: 16px; display: flex; flex-direction: column; gap: 8px;
   }
-  .card h3 { margin: 0; font-size: 1.05rem; }
+  .card h3 { font-size: 1.05rem; }
   .card p { margin: 0; color: var(--muted); font-size: .92rem; flex: 1; }
   .meta { font-size: .8rem; color: var(--muted); }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .btn {
     display: inline-block; border: 0; border-radius: 8px; padding: 9px 14px; cursor: pointer;
     font: inherit; font-size: .92rem; font-weight: 600; text-decoration: none;
     background: var(--accent); color: var(--accent-text);
   }
   .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--border); }
-  input[type=text] {
+  .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--border); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; font-size: .85rem; text-decoration: underline; cursor: pointer; }
+  input[type=text], input[type=password] {
     width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--card); color: var(--text); font: inherit;
   }
+  .drop {
+    border: 2px dashed var(--border); border-radius: 12px; padding: 22px; text-align: center;
+    color: var(--muted); cursor: pointer;
+  }
+  .drop.over { border-color: var(--accent); background: var(--soft); }
+  .status { font-size: .9rem; margin: 10px 0 0; min-height: 1.4em; }
+  .status.error { color: var(--danger); }
+  .status.ok { color: var(--ok); }
   .out { word-break: break-all; font-size: .85rem; color: var(--muted); }
   .empty { color: var(--muted); }
+  .small { font-size: .88rem; color: var(--muted); }
   code { background: var(--soft); padding: 1px 5px; border-radius: 4px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>GDevelop Class Projects</h1>
-  <p class="lead">Starter projects and examples you can open, edit and keep.</p>
+  <header>
+    <div>
+      <h1>GDevelop Class Projects</h1>
+      <p class="lead">Starter projects and examples you can open, edit and keep.</p>
+    </div>
+    <button id="teacherToggle" class="btn secondary">Teacher</button>
+  </header>
 
-  <div class="steps">
+  <section id="teacher" class="teacher" hidden>
+    <h2>Teacher tools</h2>
+
+    <div id="signin">
+      <p class="small">To add or remove projects from this page, paste a GitHub access token. It's saved only in this browser.</p>
+      <details class="small">
+        <summary>How to make a token (2 minutes, once)</summary>
+        <ol>
+          <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → New fine-grained token</a>.</li>
+          <li>Name it <em>GDevelop class page</em> and pick an expiry (for example, the end of the year).</li>
+          <li>Under <strong>Repository access</strong>, choose <em>Only select repositories</em> → <code id="repoName">gdevelop-class</code>.</li>
+          <li>Under <strong>Permissions → Repository permissions</strong>, set <strong>Contents</strong> to <em>Read and write</em>.</li>
+          <li>Click <strong>Generate token</strong>, copy it, and paste it below.</li>
+        </ol>
+      </details>
+      <div class="row" style="margin-top:10px">
+        <input id="token" type="password" placeholder="github_pat_…" autocomplete="off" style="flex:1;min-width:200px">
+        <button id="saveToken" class="btn">Save</button>
+      </div>
+      <p id="signinStatus" class="status"></p>
+    </div>
+
+    <div id="tools" hidden>
+      <h3>Add a project</h3>
+      <p class="small">In GDevelop: <strong>File → Save as → Download a copy</strong>. Then drop the .zip here.</p>
+      <label id="drop" class="drop">
+        <input id="zip" type="file" accept=".zip,application/zip" hidden>
+        <strong>Choose a .zip</strong> or drag it here
+      </label>
+      <p id="uploadStatus" class="status"></p>
+
+      <h3>Make a link to any game.json</h3>
+      <input id="src" type="text" placeholder="https://github.com/…/blob/main/projects/my-game/game.json">
+      <div class="row" style="margin-top:10px">
+        <a id="open" class="btn" href="#" target="_blank" rel="noopener" hidden>Open in GDevelop</a>
+        <button id="copy" class="btn secondary" hidden>Copy link</button>
+      </div>
+      <p id="out" class="out"></p>
+
+      <p class="small" style="margin-top:18px">Signed in on this browser. <button id="forget" class="linkbtn">Forget token</button></p>
+    </div>
+  </section>
+
+  <div class="panel">
     <strong>Students: how to get your own copy</strong>
     <ol>
       <li>Log in at <a href="https://editor.gdevelop.io" target="_blank" rel="noopener">editor.gdevelop.io</a> first.</li>
@@ -68,27 +134,30 @@
   </div>
 
   <h2>Projects</h2>
+  <p id="listStatus" class="status small"></p>
   <div id="list" class="grid"><p class="empty">Loading…</p></div>
-
-  <h2>Make a link (teacher)</h2>
-  <p class="lead">Paste the GitHub address of any <code>game.json</code> to get an "Open in GDevelop" link.</p>
-  <input id="src" type="text" placeholder="https://github.com/…/blob/main/projects/my-game/game.json">
-  <div class="row" style="margin-top:10px">
-    <a id="open" class="btn" href="#" target="_blank" rel="noopener" hidden>Open in GDevelop</a>
-    <button id="copy" class="btn secondary" hidden>Copy link</button>
-  </div>
-  <p id="out" class="out"></p>
 </main>
-<script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script type="module">
+  import { readProjectZip, checkToken, addProject, removeProject } from './admin.js';
+
   const EDITOR = 'https://editor.gdevelop.io/?project=';
+  const TOKEN_KEY = 'gdclass-token';
+  const $ = id => document.getElementById(id);
   const editorLink = url => EDITOR + encodeURIComponent(url);
 
-  function toRaw(input) {
-    const s = input.trim();
-    const m = s.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:blob|raw)\/(.+)$/);
-    if (m) return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}`;
-    if (/^https?:\/\//.test(s)) return s;
-    return '';
+  let manifest = { repo: '', branch: 'main', projects: [] };
+  let token = '';
+  try { token = localStorage.getItem(TOKEN_KEY) || ''; } catch (e) {}
+
+  const setStatus = (el, text, kind = '') => { el.textContent = text; el.className = 'status ' + kind; };
+  const isTeacher = () => !!token;
+
+  function el(tag, props = {}, kids = []) {
+    const n = Object.assign(document.createElement(tag), props);
+    kids.forEach(k => n.append(k));
+    return n;
   }
 
   async function copy(text, btn) {
@@ -97,50 +166,182 @@
     setTimeout(() => (btn.textContent = old), 1500);
   }
 
-  function el(tag, props = {}, kids = []) {
-    const n = Object.assign(document.createElement(tag), props);
-    kids.forEach(k => n.append(k));
-    return n;
+  function formatDate(iso) {
+    if (!iso) return '';
+    try { return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
+    catch (e) { return ''; }
   }
 
-  fetch('projects.json', { cache: 'no-store' })
-    .then(r => r.json())
-    .then(({ projects }) => {
-      const list = document.getElementById('list');
-      list.textContent = '';
-      if (!projects.length) {
-        list.append(el('p', { className: 'empty', textContent: 'No projects yet.' }));
-        return;
-      }
-      projects.forEach(p => {
-        const link = editorLink(p.projectUrl);
-        const copyBtn = el('button', { className: 'btn secondary', textContent: 'Copy link' });
-        copyBtn.onclick = () => copy(link, copyBtn);
-        list.append(el('div', { className: 'card' }, [
-          el('h3', { textContent: p.name }),
-          el('p', { textContent: p.description || '' }),
-          el('span', { className: 'meta', textContent: `${p.scenes} scene${p.scenes === 1 ? '' : 's'} · ${p.folder}` }),
-          el('div', { className: 'row' }, [
-            el('a', { className: 'btn', href: link, target: '_blank', rel: 'noopener', textContent: 'Open in GDevelop' }),
-            copyBtn,
-          ]),
-        ]));
-      });
-    })
-    .catch(() => {
-      document.getElementById('list').innerHTML = '<p class="empty">Could not load the project list.</p>';
-    });
+  // ---------- Project list ----------
+  async function loadManifest() {
+    const res = await fetch('projects.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) throw new Error('Could not load the project list.');
+    return res.json();
+  }
 
-  const src = document.getElementById('src'), open = document.getElementById('open'),
-        copyBtn = document.getElementById('copy'), out = document.getElementById('out');
-  src.addEventListener('input', () => {
-    const raw = toRaw(src.value);
-    const ok = !!raw;
-    open.hidden = copyBtn.hidden = !ok;
-    out.textContent = ok ? editorLink(raw) : '';
-    if (ok) open.href = editorLink(raw);
+  function render() {
+    const list = $('list');
+    list.textContent = '';
+    if (!manifest.projects.length) {
+      list.append(el('p', { className: 'empty', textContent: 'No projects yet.' }));
+      return;
+    }
+    manifest.projects.forEach(p => {
+      const link = editorLink(p.projectUrl);
+      const copyBtn = el('button', { className: 'btn secondary', textContent: 'Copy link' });
+      copyBtn.onclick = () => copy(link, copyBtn);
+      const buttons = [
+        el('a', { className: 'btn', href: link, target: '_blank', rel: 'noopener', textContent: 'Open in GDevelop' }),
+        copyBtn,
+      ];
+      if (isTeacher()) {
+        const rm = el('button', { className: 'btn danger', textContent: 'Remove' });
+        rm.onclick = () => onRemove(p, rm);
+        buttons.push(rm);
+      }
+      const bits = [`${p.scenes} scene${p.scenes === 1 ? '' : 's'}`];
+      if (p.updated) bits.push('added ' + formatDate(p.updated));
+      list.append(el('div', { className: 'card' }, [
+        el('h3', { textContent: p.name }),
+        el('p', { textContent: p.description || '' }),
+        el('span', { className: 'meta', textContent: bits.join(' · ') }),
+        el('div', { className: 'row' }, buttons),
+      ]));
+    });
+  }
+
+  // After a change, GitHub takes about a minute to rebuild the page.
+  async function waitForChange(check, label) {
+    setStatus($('listStatus'), `${label} The list updates in about a minute…`);
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 6000));
+      try {
+        const m = await loadManifest();
+        if (check(m)) {
+          manifest = m; render();
+          setStatus($('listStatus'), '');
+          return true;
+        }
+      } catch (e) {}
+    }
+    setStatus($('listStatus'), 'Still updating. Refresh the page in a minute or two.');
+    return false;
+  }
+
+  // ---------- Teacher sign-in ----------
+  function showTeacher() {
+    $('signin').hidden = isTeacher();
+    $('tools').hidden = !isTeacher();
+    render();
+  }
+
+  $('teacherToggle').onclick = () => {
+    $('teacher').hidden = !$('teacher').hidden;
+    $('teacherToggle').textContent = $('teacher').hidden ? 'Teacher' : 'Close teacher tools';
+  };
+
+  $('saveToken').onclick = async () => {
+    const value = $('token').value.trim();
+    if (!value) return;
+    setStatus($('signinStatus'), 'Checking…');
+    try {
+      await checkToken(value, manifest.repo);
+      token = value;
+      try { localStorage.setItem(TOKEN_KEY, token); } catch (e) {}
+      $('token').value = '';
+      setStatus($('signinStatus'), '');
+      showTeacher();
+    } catch (e) {
+      setStatus($('signinStatus'), e.status === 401 ? "GitHub didn't accept that token. Check it was copied fully." : e.message, 'error');
+    }
+  };
+
+  $('forget').onclick = () => {
+    token = '';
+    try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+    showTeacher();
+  };
+
+  function handleAuthError(e, statusEl) {
+    if (e.status === 401 || e.status === 403) {
+      setStatus(statusEl, 'Your token has expired or lacks permission. Paste a new one.', 'error');
+      token = '';
+      try { localStorage.removeItem(TOKEN_KEY); } catch (err) {}
+      showTeacher();
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- Add from zip ----------
+  let busy = false;
+  async function onZip(file) {
+    if (!file || busy) return;
+    const status = $('uploadStatus');
+    if (!/\.zip$/i.test(file.name)) { setStatus(status, 'Please choose a .zip file.', 'error'); return; }
+    busy = true;
+    try {
+      setStatus(status, `Reading ${file.name}…`);
+      const project = await readProjectZip(window.JSZip, await file.arrayBuffer());
+      setStatus(status, `Uploading "${project.name}" (${project.files.length} files)…`);
+      const folder = await addProject(token, manifest.repo, manifest.branch, project, (n, total) =>
+        setStatus(status, `Uploading "${project.name}": ${n} of ${total} files…`)
+      );
+      setStatus(status, `Added "${project.name}".`, 'ok');
+      waitForChange(m => m.projects.some(p => p.folder === folder), `Added "${project.name}".`);
+    } catch (e) {
+      if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
+    } finally {
+      busy = false;
+      $('zip').value = '';
+    }
+  }
+
+  $('zip').onchange = e => onZip(e.target.files[0]);
+  const drop = $('drop');
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); onZip(e.dataTransfer.files[0]); });
+
+  // ---------- Remove ----------
+  async function onRemove(p, btn) {
+    if (!confirm(`Remove "${p.name}" from the page?\n\nStudents who already saved a copy keep theirs. The files stay in the repository's history on GitHub.`)) return;
+    btn.disabled = true; btn.textContent = 'Removing…';
+    try {
+      await removeProject(token, manifest.repo, manifest.branch, p.folder, p.name);
+      manifest.projects = manifest.projects.filter(x => x.folder !== p.folder);
+      render();
+      waitForChange(m => !m.projects.some(x => x.folder === p.folder), `Removed "${p.name}".`);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Remove';
+      if (!handleAuthError(e, $('listStatus'))) setStatus($('listStatus'), e.message, 'error');
+    }
+  }
+
+  // ---------- Make a link ----------
+  function toRaw(input) {
+    const s = input.trim();
+    const m = s.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:blob|raw)\/(.+)$/);
+    if (m) return `https://raw.githubusercontent.com/${m[1]}/${m[2]}/${m[3]}`;
+    if (/^https?:\/\//.test(s)) return s;
+    return '';
+  }
+  $('src').addEventListener('input', () => {
+    const raw = toRaw($('src').value);
+    $('open').hidden = $('copy').hidden = !raw;
+    $('out').textContent = raw ? editorLink(raw) : '';
+    if (raw) $('open').href = editorLink(raw);
   });
-  copyBtn.onclick = () => copy(out.textContent, copyBtn);
+  $('copy').onclick = () => copy($('out').textContent, $('copy'));
+
+  // ---------- Start ----------
+  loadManifest()
+    .then(m => {
+      manifest = m;
+      $('repoName').textContent = m.repo.split('/')[1] || 'gdevelop-class';
+      showTeacher();
+    })
+    .catch(() => { $('list').innerHTML = '<p class="empty">Could not load the project list.</p>'; });
 </script>
 </body>
 </html>

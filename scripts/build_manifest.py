@@ -5,6 +5,7 @@ Run by the GitHub Action on every push. Each project folder becomes one
 """
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import quote
@@ -15,6 +16,17 @@ PROJECTS_DIR = ROOT / "projects"
 repo = os.environ.get("GITHUB_REPOSITORY", "OWNER/REPO")
 branch = os.environ.get("GITHUB_REF_NAME", "main")
 raw_base = f"https://raw.githubusercontent.com/{repo}/{branch}/"
+
+def last_changed(folder: Path) -> str:
+    """Date of the last commit touching this folder (needs full git history)."""
+    try:
+        return subprocess.run(
+            ["git", "log", "-1", "--format=%cI", "--", str(folder)],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except Exception:
+        return ""
+
 
 projects = []
 for game_json in sorted(PROJECTS_DIR.rglob("*.json")):
@@ -34,10 +46,14 @@ for game_json in sorted(PROJECTS_DIR.rglob("*.json")):
             "description": props.get("description", ""),
             "folder": folder,
             "scenes": len(data.get("layouts", [])),
+            "updated": last_changed(game_json.parent),
             "projectUrl": raw_base + quote(rel),
         }
     )
 
-out = {"repo": repo, "branch": branch, "projects": projects}
+# Newest first.
+projects.sort(key=lambda p: p["updated"], reverse=True)
+
+out ={"repo": repo, "branch": branch, "projects": projects}
 (ROOT / "projects.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
 print(f"Found {len(projects)} project(s)", file=sys.stderr)
