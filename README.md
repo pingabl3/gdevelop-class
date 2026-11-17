@@ -7,19 +7,23 @@ Each project gets a link that opens it directly in the GDevelop web editor.
 
 > ⚠️ This repository is **public**. Use it for starter projects, examples and exemplars, not student work.
 
-## Adding a project (teacher)
+## Adding and removing projects (teacher)
 
 1. Open your project at [editor.gdevelop.io](https://editor.gdevelop.io).
 2. **File → Save as → Download a copy**. You get a `.zip`.
-3. Unzip it. You'll have a folder containing `game.json` plus the image and sound files.
-4. On GitHub, open the `projects` folder in this repo, then click **Add file → Upload files**.
-5. Drag the **whole unzipped folder** in. Give it a simple name such as `space-shooter-starter`.
-6. Click **Commit changes**.
+3. On the class page, click **Teacher**, then drop the `.zip` into **Add a project**.
 
 After about a minute, the project shows up on the class page with an **Open in GDevelop** button.
 The card uses the project name and description from GDevelop's *Game settings*.
 
-To update a project, upload the new files over the old ones. To remove one, delete its folder.
+To remove a project, click **Remove** on its card while the Teacher panel is signed in.
+Removed projects stay in the repository's history on GitHub. To update a project, remove the old one and upload the new zip.
+
+**First time only:** the Teacher panel asks for a GitHub fine-grained token with
+*Contents: Read and write* on this repository only. The page explains how to make one.
+The token is saved only in that browser. Use **Forget token** on shared computers.
+
+You can still add a project by hand: unzip it and upload the folder into `projects/` on GitHub.
 
 ## What students do
 
