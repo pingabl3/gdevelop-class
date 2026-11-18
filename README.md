@@ -25,6 +25,14 @@ The token is saved only in that browser. Use **Forget token** on shared computer
 
 You can still add a project by hand: unzip it and upload the folder into `projects/` on GitHub.
 
+## Previous Students' Top Games
+
+In the Teacher panel, paste a game's gd.games link (for example `https://gd.games/games/<id>`) under
+**Add a top game** and add an optional caption, such as "Year 11, 2025". On the next page build,
+GitHub fetches the game's name, description and first screenshot from gd.games. The details also
+refresh once a day. On each game card, **Edit** changes the title or caption, and **Remove** takes
+it off the page. Removing it here doesn't touch the game on gd.games. Games are stored in `config.json`.
+
 ## Students handing work in (private)
 
 Student work never goes into this public repository.
