@@ -69,6 +69,7 @@ print(f"Found {len(projects)} project(s)", file=sys.stderr)
 # ---------------------------------------------------------------------------
 # Previous students' top games: the teacher lists gd.games IDs in config.json;
 # fetch each game's name, description and screenshot from GDevelop's public API.
+import re
 import urllib.request
 
 try:
@@ -106,29 +107,66 @@ def image_score(url: str) -> float:
         return 0.0
 
 
+UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+
+def resolve_slug(slug: str) -> str:
+    """Turn a gd.games/<user>/<game> link into the game ID, using the public game page."""
+    url = f"https://gd.games/{slug}"
+    req = urllib.request.Request(url, headers={"User-Agent": "gdevelop-class-page"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as res:
+            html = res.read().decode("utf-8", "replace")
+    except Exception as e:
+        print(f"Could not open {url}: {e}", file=sys.stderr)
+        return ""
+    # The page's preview image lives under public-game-resources.gdevelop.io/<game id>/
+    m = re.search(r"public-game-resources\.gdevelop\.io/(" + UUID_RE.pattern + ")/", html)
+    if m:
+        return m.group(1)
+    ids = UUID_RE.findall(html)
+    return max(set(ids), key=ids.count) if ids else ""
+
+
 games = []
+seen = set()
 for entry in config.get("games", []):
-    game_id = entry.get("id", "")
-    info = fetch_game(game_id)
+    key = entry.get("id") or entry.get("slug", "")
+    game_id = entry.get("id") or (resolve_slug(entry["slug"]) if entry.get("slug") else "")
+    if game_id in seen:
+        continue
+    seen.add(game_id)
+    info = fetch_game(game_id) if game_id else {}
     shots = info.get("screenshotUrls") or []
+    own_thumb = info.get("thumbnailUrl") or ""
+    options = ([own_thumb] if own_thumb else []) + shots
     chosen = entry.get("thumbnail", "")
-    if chosen and chosen in shots:
+    if chosen and chosen in options:
         thumbnail = chosen
+    elif own_thumb:
+        thumbnail = own_thumb  # thumbnail the student set in GDevelop
     elif len(shots) > 1:
         thumbnail = max(shots, key=image_score)
     else:
         thumbnail = shots[0] if shots else ""
+    if info.get("userSlug") and info.get("gameSlug"):
+        play_url = f"https://gd.games/{info['userSlug']}/{info['gameSlug']}"
+    elif entry.get("slug"):
+        play_url = f"https://gd.games/{entry['slug']}"
+    else:
+        play_url = f"https://gd.games/games/{game_id}"
     games.append(
         {
+            "key": key,
             "id": game_id,
             "title": entry.get("title") or info.get("gameName") or "Untitled game",
             "originalTitle": info.get("gameName") or "",
             "caption": entry.get("caption", ""),
             "description": info.get("description") or "",
             "thumbnail": thumbnail,
-            "thumbnailChosen": bool(chosen and chosen in shots),
-            "screenshots": shots,
-            "playUrl": f"https://gd.games/games/{game_id}",
+            "thumbnailChosen": bool(chosen and chosen in options),
+            "screenshots": options,
+            "playUrl": play_url,
             "available": bool(info),
             "added": entry.get("added", ""),
         }

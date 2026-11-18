@@ -27,7 +27,7 @@ You can still add a project by hand: unzip it and upload the folder into `projec
 
 ## Previous Students' Top Games
 
-In the Teacher panel, paste a game's gd.games link (for example `https://gd.games/games/<id>`) under
+In the Teacher panel, paste any gd.games game link (`https://gd.games/games/<id>` or `https://gd.games/<user>/<game>`) under
 **Add a top game** and add an optional caption, such as "Year 11, 2025". On the next page build,
 GitHub fetches the game's name, description and first screenshot from gd.games. The details also
 refresh once a day. On each game card, **Edit** changes the title or caption, and **Remove** takes

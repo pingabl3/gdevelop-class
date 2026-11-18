@@ -138,7 +138,7 @@
 
       <h3>Add a top game from a previous student</h3>
       <p class="small">Paste the game's gd.games link. Its name, description and screenshot are filled in automatically. Add a caption if you like, such as "Year 11, 2025".</p>
-      <input id="gameLink" type="text" placeholder="https://gd.games/games/…">
+      <input id="gameLink" type="text" placeholder="https://gd.games/… (any gd.games game link)">
       <div class="row" style="margin-top:8px">
         <input id="gameCaption" type="text" placeholder="Caption (optional)" maxlength="60" style="flex:1;min-width:180px">
         <button id="addGame" class="btn">Add game</button>
@@ -200,7 +200,7 @@
   import {
     readProjectZip, checkToken, addProject, removeProject,
     packProjectZip, createTempGist, deleteGist, cleanupTempGists, saveConfig, renameProject,
-    gameIdFromLink, addGame, editGame, removeGame,
+    gameRefFromLink, addGame, editGame, removeGame,
   } from './admin.js';
 
   const EDITOR = 'https://editor.gdevelop.io/?project=';
@@ -330,20 +330,24 @@
 
   $('addGame').onclick = async () => {
     const status = $('gameStatus');
-    const id = gameIdFromLink($('gameLink').value);
-    if (!id) {
-      setStatus(status, 'That link has no game ID. Open the game on gd.games and copy the address, which looks like gd.games/games/1234abcd-….', 'error');
+    const ref = gameRefFromLink($('gameLink').value);
+    if (!ref) {
+      setStatus(status, "That doesn't look like a gd.games link. Open the game on gd.games and copy the address from the browser.", 'error');
       return;
     }
-    if (games.some(g => g.id === id)) { setStatus(status, 'That game is already on the page.', 'error'); return; }
+    const key = ref.id || ref.slug;
+    const playPath = ref.slug ? '/' + ref.slug : '/games/' + ref.id;
+    if (games.some(g => g.key === key || g.id === key || (g.playUrl || '').toLowerCase().endsWith(playPath))) {
+      setStatus(status, 'That game is already on the page.', 'error'); return;
+    }
     const caption = $('gameCaption').value.trim();
     $('addGame').disabled = true;
     setStatus(status, 'Adding…');
     try {
-      await addGame(token, manifest.repo, manifest.branch, id, caption);
+      await addGame(token, manifest.repo, manifest.branch, ref, caption);
       $('gameLink').value = ''; $('gameCaption').value = '';
       setStatus(status, 'Added. Its name and screenshot appear in about a minute.', 'ok');
-      waitForGames(g => g.some(x => x.id === id), 'Game added.');
+      waitForGames(g => g.some(x => x.key === key), 'Game added.');
     } catch (e) {
       if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
     } finally {
@@ -389,14 +393,14 @@
       const caption = capIn.value.trim();
       save.disabled = cancel.disabled = true; save.textContent = 'Saving…';
       try {
-        await editGame(token, manifest.repo, manifest.branch, g.id, { title, caption, thumbnail: thumbChoice });
+        await editGame(token, manifest.repo, manifest.branch, g.key || g.id, { title, caption, thumbnail: thumbChoice });
         const shown = title || g.originalTitle || g.title;
         g.title = shown; g.caption = caption;
         g.thumbnail = thumbChoice || g.autoThumbnail || g.thumbnail;
         g.thumbnailChosen = !!thumbChoice;
         renderGames();
         waitForGames(list => list.some(x =>
-          x.id === g.id && x.title === shown && (x.caption || '') === caption &&
+          (x.key || x.id) === (g.key || g.id) && x.title === shown && (x.caption || '') === caption &&
           !!x.thumbnailChosen === !!thumbChoice && (!thumbChoice || x.thumbnail === thumbChoice)
         ), 'Saved.');
       } catch (e) {
@@ -417,10 +421,11 @@
     if (!confirm(`Remove "${g.title}" from Previous Students' Top Games?\n\nThe game stays on gd.games.`)) return;
     btn.disabled = true; btn.textContent = 'Removing…';
     try {
-      await removeGame(token, manifest.repo, manifest.branch, g.id);
-      games = games.filter(x => x.id !== g.id);
+      const key = g.key || g.id;
+      await removeGame(token, manifest.repo, manifest.branch, key);
+      games = games.filter(x => (x.key || x.id) !== key);
       renderGames();
-      waitForGames(list => !list.some(x => x.id === g.id), `Removed "${g.title}".`);
+      waitForGames(list => !list.some(x => (x.key || x.id) === key), `Removed "${g.title}".`);
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Remove';
       if (!handleAuthError(e, $('gamesListStatus'))) setStatus($('gamesListStatus'), e.message, 'error');

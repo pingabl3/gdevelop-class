@@ -292,29 +292,41 @@ export function renameProject(token, repo, branch, folder, name) {
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-/** Get the game ID from a gd.games link (or a bare ID). Returns '' if none. */
-export function gameIdFromLink(link) {
-  const m = String(link || '').match(UUID);
-  return m ? m[0].toLowerCase() : '';
+const gameKey = g => g.id || g.slug;
+
+/**
+ * Read a gd.games link. Returns { id } for links containing the game ID
+ * (gd.games/games/<id>), { slug: 'user/game' } for name-style links
+ * (gd.games/<user>/<game>), or null. Name-style links are turned into an ID
+ * when the page rebuilds.
+ */
+export function gameRefFromLink(link) {
+  const text = String(link || '').trim();
+  const m = text.match(UUID);
+  if (m) return { id: m[0].toLowerCase() };
+  const s = text.match(/^(?:https?:\/\/)?(?:www\.)?gd\.games\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/?(?:[?#].*)?$/);
+  if (s && s[1].toLowerCase() !== 'games') return { slug: `${s[1]}/${s[2]}`.toLowerCase() };
+  return null;
 }
 
-export function addGame(token, repo, branch, id, caption) {
+export function addGame(token, repo, branch, ref, caption) {
+  const key = ref.id || ref.slug;
   return saveConfig(token, repo, branch, cfg => {
-    const games = (cfg.games || []).filter(g => g.id !== id);
-    games.unshift({ id, caption: caption || '', added: new Date().toISOString() });
+    const games = (cfg.games || []).filter(g => gameKey(g) !== key);
+    games.unshift({ ...ref, caption: caption || '', added: new Date().toISOString() });
     return { ...cfg, games };
-  }, `Add top game: ${id}`);
+  }, `Add top game: ${key}`);
 }
 
 /**
  * Change a game's title (empty = use its gd.games name), caption and
  * thumbnail (a screenshot URL; empty = pick automatically).
  */
-export function editGame(token, repo, branch, id, { title, caption, thumbnail }) {
+export function editGame(token, repo, branch, key, { title, caption, thumbnail }) {
   return saveConfig(token, repo, branch, cfg => ({
     ...cfg,
     games: (cfg.games || []).map(g => {
-      if (g.id !== id) return g;
+      if (gameKey(g) !== key) return g;
       const next = { ...g, caption: caption || '' };
       if (title) next.title = title;
       else delete next.title;
@@ -322,12 +334,12 @@ export function editGame(token, repo, branch, id, { title, caption, thumbnail })
       else delete next.thumbnail;
       return next;
     }),
-  }), `Edit top game: ${id}`);
+  }), `Edit top game: ${key}`);
 }
 
-export function removeGame(token, repo, branch, id) {
+export function removeGame(token, repo, branch, key) {
   return saveConfig(token, repo, branch, cfg => ({
     ...cfg,
-    games: (cfg.games || []).filter(g => g.id !== id),
-  }), `Remove top game: ${id}`);
+    games: (cfg.games || []).filter(g => gameKey(g) !== key),
+  }), `Remove top game: ${key}`);
 }
