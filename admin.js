@@ -286,3 +286,43 @@ export function renameProject(token, repo, branch, folder, name) {
     return { ...cfg, titles };
   }, name ? `Rename project: ${folder} → ${name}` : `Reset project name: ${folder}`);
 }
+
+// ---------------------------------------------------------------------------
+// Previous students' top games (gd.games links), stored in config.json.
+
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+/** Get the game ID from a gd.games link (or a bare ID). Returns '' if none. */
+export function gameIdFromLink(link) {
+  const m = String(link || '').match(UUID);
+  return m ? m[0].toLowerCase() : '';
+}
+
+export function addGame(token, repo, branch, id, caption) {
+  return saveConfig(token, repo, branch, cfg => {
+    const games = (cfg.games || []).filter(g => g.id !== id);
+    games.unshift({ id, caption: caption || '', added: new Date().toISOString() });
+    return { ...cfg, games };
+  }, `Add top game: ${id}`);
+}
+
+/** Change a game's title (empty = use its gd.games name) and caption. */
+export function editGame(token, repo, branch, id, { title, caption }) {
+  return saveConfig(token, repo, branch, cfg => ({
+    ...cfg,
+    games: (cfg.games || []).map(g => {
+      if (g.id !== id) return g;
+      const next = { ...g, caption: caption || '' };
+      if (title) next.title = title;
+      else delete next.title;
+      return next;
+    }),
+  }), `Edit top game: ${id}`);
+}
+
+export function removeGame(token, repo, branch, id) {
+  return saveConfig(token, repo, branch, cfg => ({
+    ...cfg,
+    games: (cfg.games || []).filter(g => g.id !== id),
+  }), `Remove top game: ${id}`);
+}

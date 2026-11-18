@@ -64,3 +64,48 @@ projects.sort(key=lambda p: p["updated"], reverse=True)
 out ={"repo": repo, "branch": branch, "projects": projects}
 (ROOT / "projects.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
 print(f"Found {len(projects)} project(s)", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# Previous students' top games: the teacher lists gd.games IDs in config.json;
+# fetch each game's name, description and screenshot from GDevelop's public API.
+import urllib.request
+
+try:
+    config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+except Exception:
+    config = {}
+
+
+def fetch_game(game_id: str) -> dict:
+    url = f"https://api.gdevelop.io/game/public-game/{game_id}"
+    req = urllib.request.Request(url, headers={"User-Agent": "gdevelop-class-page"})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as res:
+            return json.load(res)
+    except Exception as e:
+        print(f"Could not fetch game {game_id}: {e}", file=sys.stderr)
+        return {}
+
+
+games = []
+for entry in config.get("games", []):
+    game_id = entry.get("id", "")
+    info = fetch_game(game_id)
+    shots = info.get("screenshotUrls") or []
+    games.append(
+        {
+            "id": game_id,
+            "title": entry.get("title") or info.get("gameName") or "Untitled game",
+            "originalTitle": info.get("gameName") or "",
+            "caption": entry.get("caption", ""),
+            "description": info.get("description") or "",
+            "thumbnail": shots[0] if shots else "",
+            "playUrl": f"https://gd.games/games/{game_id}",
+            "available": bool(info),
+            "added": entry.get("added", ""),
+        }
+    )
+
+(ROOT / "games.json").write_text(json.dumps({"games": games}, indent=2), encoding="utf-8")
+print(f"Found {len(games)} game(s)", file=sys.stderr)

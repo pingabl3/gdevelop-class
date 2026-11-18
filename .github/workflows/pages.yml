@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # Refresh game titles and screenshots from gd.games once a day.
+    - cron: '0 17 * * *'
 
 permissions:
   contents: read
@@ -29,7 +32,7 @@ jobs:
       - name: Prepare site
         run: |
           mkdir _site
-          cp index.html admin.js projects.json _site/
+          cp index.html admin.js projects.json games.json _site/
           if [ -f config.json ]; then cp config.json _site/; fi
           # Make browsers load the new admin.js after each update instead of a cached one.
           sed -i "s#'./admin.js'#'./admin.js?v=${GITHUB_SHA::7}'#" _site/index.html

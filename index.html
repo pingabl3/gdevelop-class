@@ -67,6 +67,13 @@
   .status.ok { color: var(--ok); }
   .out { word-break: break-all; font-size: .85rem; color: var(--muted); }
   .empty { color: var(--muted); }
+  .game { padding: 0; overflow: hidden; }
+  .game .thumb {
+    display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--soft);
+  }
+  .game .thumb.placeholder { display: grid; place-items: center; color: var(--muted); font-size: 2rem; }
+  .game .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .caption { font-size: .82rem; font-weight: 600; color: var(--accent); }
   .small { font-size: .88rem; color: var(--muted); }
   code { background: var(--soft); padding: 1px 5px; border-radius: 4px; }
 </style>
@@ -122,6 +129,15 @@
       <p id="studentStatus" class="status"></p>
       <div class="row"><a id="studentOpen" class="btn" href="#" target="_blank" rel="noopener" hidden>Open in GDevelop</a></div>
 
+      <h3>Add a top game from a previous student</h3>
+      <p class="small">Paste the game's gd.games link. Its name, description and screenshot are filled in automatically. Add a caption if you like, such as "Year 11, 2025".</p>
+      <input id="gameLink" type="text" placeholder="https://gd.games/games/…">
+      <div class="row" style="margin-top:8px">
+        <input id="gameCaption" type="text" placeholder="Caption (optional)" maxlength="60" style="flex:1;min-width:180px">
+        <button id="addGame" class="btn">Add game</button>
+      </div>
+      <p id="gameStatus" class="status"></p>
+
       <h3>Hand-in link for students</h3>
       <p class="small">Paste the link to your Google Classroom assignment (or Google Form). Students see a <em>Hand in</em> button with instructions. Leave it empty to hide the button.</p>
       <div class="row">
@@ -163,6 +179,13 @@
   <h2>Projects</h2>
   <p id="listStatus" class="status small"></p>
   <div id="list" class="grid"><p class="empty">Loading…</p></div>
+
+  <section id="gamesSection" hidden>
+    <h2>Previous Students' Top Games</h2>
+    <p class="lead" style="margin-bottom:12px">Great games made by students in earlier classes. Click Play to try them.</p>
+    <p id="gamesListStatus" class="status small"></p>
+    <div id="games" class="grid"></div>
+  </section>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -170,6 +193,7 @@
   import {
     readProjectZip, checkToken, addProject, removeProject,
     packProjectZip, createTempGist, deleteGist, cleanupTempGists, saveConfig, renameProject,
+    gameIdFromLink, addGame, editGame, removeGame,
   } from './admin.js';
 
   const EDITOR = 'https://editor.gdevelop.io/?project=';
@@ -245,6 +269,126 @@
     });
   }
 
+  // ---------- Previous students' top games ----------
+  let games = [];
+  async function loadGames() {
+    const res = await fetch('games.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return [];
+    return (await res.json()).games || [];
+  }
+
+  async function waitForGames(check, label) {
+    const status = $('gamesListStatus');
+    setStatus(status, `${label} It appears here in about a minute…`);
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 6000));
+      try {
+        const g = await loadGames();
+        if (check(g)) { games = g; renderGames(); setStatus(status, ''); return; }
+      } catch (e) {}
+    }
+    setStatus(status, 'Still updating. Refresh the page in a minute or two.');
+  }
+
+  function renderGames() {
+    const box = $('games');
+    box.textContent = '';
+    $('gamesSection').hidden = !games.length && !isTeacher();
+    if (!games.length) {
+      box.append(el('p', { className: 'empty', textContent: 'No games yet. Add one in the Teacher panel.' }));
+      return;
+    }
+    games.forEach(g => {
+      const thumb = g.thumbnail
+        ? el('img', { className: 'thumb', src: g.thumbnail, alt: `Screenshot of ${g.title}`, loading: 'lazy' })
+        : el('div', { className: 'thumb placeholder', textContent: '🎮' });
+      const playLink = el('a', { href: g.playUrl, target: '_blank', rel: 'noopener' }, [thumb]);
+      const title = el('h3', { textContent: g.title });
+      const body = el('div', { className: 'body' });
+      if (g.caption) body.append(el('span', { className: 'caption', textContent: g.caption }));
+      body.append(title);
+      body.append(el('p', { textContent: g.available ? (g.description || '') : "This game couldn't be found on gd.games. It may have been unpublished." }));
+      const buttons = [el('a', { className: 'btn', href: g.playUrl, target: '_blank', rel: 'noopener', textContent: 'Play' })];
+      if (isTeacher()) {
+        const edit = el('button', { className: 'btn secondary', textContent: 'Edit' });
+        edit.onclick = () => startEditGame(g, body);
+        const rm = el('button', { className: 'btn danger', textContent: 'Remove' });
+        rm.onclick = () => onRemoveGame(g, rm);
+        buttons.push(edit, rm);
+      }
+      body.append(el('div', { className: 'row' }, buttons));
+      box.append(el('div', { className: 'card game' }, [playLink, body]));
+    });
+  }
+
+  $('addGame').onclick = async () => {
+    const status = $('gameStatus');
+    const id = gameIdFromLink($('gameLink').value);
+    if (!id) {
+      setStatus(status, 'That link has no game ID. Open the game on gd.games and copy the address, which looks like gd.games/games/1234abcd-….', 'error');
+      return;
+    }
+    if (games.some(g => g.id === id)) { setStatus(status, 'That game is already on the page.', 'error'); return; }
+    const caption = $('gameCaption').value.trim();
+    $('addGame').disabled = true;
+    setStatus(status, 'Adding…');
+    try {
+      await addGame(token, manifest.repo, manifest.branch, id, caption);
+      $('gameLink').value = ''; $('gameCaption').value = '';
+      setStatus(status, 'Added. Its name and screenshot appear in about a minute.', 'ok');
+      waitForGames(g => g.some(x => x.id === id), 'Game added.');
+    } catch (e) {
+      if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
+    } finally {
+      $('addGame').disabled = false;
+    }
+  };
+
+  function startEditGame(g, body) {
+    const titleIn = el('input', { type: 'text', value: g.title, maxLength: 80, placeholder: 'Title' });
+    const capIn = el('input', { type: 'text', value: g.caption || '', maxLength: 60, placeholder: 'Caption (optional)', style: 'margin-top:6px' });
+    const save = el('button', { className: 'btn', textContent: 'Save' });
+    const cancel = el('button', { className: 'btn secondary', textContent: 'Cancel' });
+    cancel.onclick = () => renderGames();
+    save.onclick = async () => {
+      const typed = titleIn.value.trim();
+      const title = typed && typed !== g.originalTitle ? typed : '';
+      const caption = capIn.value.trim();
+      save.disabled = cancel.disabled = true; save.textContent = 'Saving…';
+      try {
+        await editGame(token, manifest.repo, manifest.branch, g.id, { title, caption });
+        const shown = title || g.originalTitle || g.title;
+        g.title = shown; g.caption = caption;
+        renderGames();
+        waitForGames(list => list.some(x => x.id === g.id && x.title === shown && (x.caption || '') === caption), 'Saved.');
+      } catch (e) {
+        save.disabled = cancel.disabled = false; save.textContent = 'Save';
+        if (!handleAuthError(e, $('gamesListStatus'))) setStatus($('gamesListStatus'), e.message, 'error');
+      }
+    };
+    [titleIn, capIn].forEach(i => i.addEventListener('keydown', e => {
+      if (e.key === 'Enter') save.onclick();
+      if (e.key === 'Escape') renderGames();
+    }));
+    const hint = g.originalTitle ? el('span', { className: 'meta', textContent: `Leave the title empty to use "${g.originalTitle}".` }) : '';
+    body.replaceChildren(titleIn, capIn, hint, el('div', { className: 'row' }, [save, cancel]));
+    titleIn.focus();
+  }
+
+  async function onRemoveGame(g, btn) {
+    if (!confirm(`Remove "${g.title}" from Previous Students' Top Games?\n\nThe game stays on gd.games.`)) return;
+    btn.disabled = true; btn.textContent = 'Removing…';
+    try {
+      await removeGame(token, manifest.repo, manifest.branch, g.id);
+      games = games.filter(x => x.id !== g.id);
+      renderGames();
+      waitForGames(list => !list.some(x => x.id === g.id), `Removed "${g.title}".`);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Remove';
+      if (!handleAuthError(e, $('gamesListStatus'))) setStatus($('gamesListStatus'), e.message, 'error');
+    }
+  }
+
   // ---------- Rename ----------
   function startRename(p, card, title) {
     const input = el('input', { type: 'text', value: p.name, maxLength: 80 });
@@ -317,6 +461,7 @@
     $('signin').hidden = isTeacher();
     $('tools').hidden = !isTeacher();
     render();
+    renderGames();
   }
 
   $('teacherToggle').onclick = () => {
@@ -476,6 +621,8 @@
   $('copy').onclick = () => copy($('out').textContent, $('copy'));
 
   // ---------- Start ----------
+  loadGames().then(g => { games = g; renderGames(); }).catch(() => {});
+
   fetch('config.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => (r.ok ? r.json() : {}))
     .catch(() => ({}))
