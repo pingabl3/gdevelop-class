@@ -88,11 +88,36 @@ def fetch_game(game_id: str) -> dict:
         return {}
 
 
+def image_score(url: str) -> float:
+    """How interesting a screenshot looks: blank, black or loading screens score low."""
+    try:
+        from io import BytesIO
+        from PIL import Image, ImageStat
+
+        req = urllib.request.Request(url, headers={"User-Agent": "gdevelop-class-page"})
+        with urllib.request.urlopen(req, timeout=15) as res:
+            img = Image.open(BytesIO(res.read())).convert("RGB")
+        img.thumbnail((160, 160))
+        detail = sum(ImageStat.Stat(img).stddev) / 3  # contrast / detail
+        colours = len(img.getcolors(img.width * img.height)) / (img.width * img.height)  # variety of colours
+        return detail + 60 * colours
+    except Exception as e:
+        print(f"Could not score {url}: {e}", file=sys.stderr)
+        return 0.0
+
+
 games = []
 for entry in config.get("games", []):
     game_id = entry.get("id", "")
     info = fetch_game(game_id)
     shots = info.get("screenshotUrls") or []
+    chosen = entry.get("thumbnail", "")
+    if chosen and chosen in shots:
+        thumbnail = chosen
+    elif len(shots) > 1:
+        thumbnail = max(shots, key=image_score)
+    else:
+        thumbnail = shots[0] if shots else ""
     games.append(
         {
             "id": game_id,
@@ -100,7 +125,9 @@ for entry in config.get("games", []):
             "originalTitle": info.get("gameName") or "",
             "caption": entry.get("caption", ""),
             "description": info.get("description") or "",
-            "thumbnail": shots[0] if shots else "",
+            "thumbnail": thumbnail,
+            "thumbnailChosen": bool(chosen and chosen in shots),
+            "screenshots": shots,
             "playUrl": f"https://gd.games/games/{game_id}",
             "available": bool(info),
             "added": entry.get("added", ""),

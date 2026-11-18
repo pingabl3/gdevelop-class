@@ -74,6 +74,13 @@
   .game .thumb.placeholder { display: grid; place-items: center; color: var(--muted); font-size: 2rem; }
   .game .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
   .caption { font-size: .82rem; font-weight: 600; color: var(--accent); }
+  .picker { display: flex; flex-wrap: wrap; gap: 6px; }
+  .picker button {
+    padding: 0; border: 2px solid var(--border); border-radius: 6px; background: var(--soft);
+    cursor: pointer; overflow: hidden; width: 72px; height: 42px; font: inherit; font-size: .72rem; color: var(--muted);
+  }
+  .picker button img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .picker button.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
   .small { font-size: .88rem; color: var(--muted); }
   code { background: var(--soft); padding: 1px 5px; border-radius: 4px; }
 </style>
@@ -345,6 +352,32 @@
   };
 
   function startEditGame(g, body) {
+    // Thumbnail picker: "Auto" plus one button per screenshot.
+    let thumbChoice = g.thumbnailChosen ? g.thumbnail : '';
+    const card = body.parentElement;
+    const cardImg = card.querySelector('img.thumb');
+    const picker = el('div', { className: 'picker' });
+    const shots = g.screenshots || [];
+    const choose = (url, btn) => {
+      thumbChoice = url;
+      picker.querySelectorAll('button').forEach(b => b.classList.toggle('selected', b === btn));
+      if (cardImg) cardImg.src = url || g.autoThumbnail || g.thumbnail;
+    };
+    g.autoThumbnail = g.autoThumbnail || (g.thumbnailChosen ? '' : g.thumbnail);
+    const auto = el('button', { type: 'button', textContent: 'Auto', title: 'Pick automatically' });
+    auto.onclick = () => choose('', auto);
+    picker.append(auto);
+    shots.forEach((url, i) => {
+      const b = el('button', { type: 'button', title: `Screenshot ${i + 1}` }, [el('img', { src: url, alt: `Screenshot ${i + 1}` })]);
+      b.onclick = () => choose(url, b);
+      picker.append(b);
+      if (url === thumbChoice) b.classList.add('selected');
+    });
+    if (!thumbChoice) auto.classList.add('selected');
+    const pickerBlock = shots.length > 1
+      ? el('div', {}, [el('span', { className: 'meta', textContent: 'Thumbnail:' }), picker])
+      : '';
+
     const titleIn = el('input', { type: 'text', value: g.title, maxLength: 80, placeholder: 'Title' });
     const capIn = el('input', { type: 'text', value: g.caption || '', maxLength: 60, placeholder: 'Caption (optional)', style: 'margin-top:6px' });
     const save = el('button', { className: 'btn', textContent: 'Save' });
@@ -356,11 +389,16 @@
       const caption = capIn.value.trim();
       save.disabled = cancel.disabled = true; save.textContent = 'Saving…';
       try {
-        await editGame(token, manifest.repo, manifest.branch, g.id, { title, caption });
+        await editGame(token, manifest.repo, manifest.branch, g.id, { title, caption, thumbnail: thumbChoice });
         const shown = title || g.originalTitle || g.title;
         g.title = shown; g.caption = caption;
+        g.thumbnail = thumbChoice || g.autoThumbnail || g.thumbnail;
+        g.thumbnailChosen = !!thumbChoice;
         renderGames();
-        waitForGames(list => list.some(x => x.id === g.id && x.title === shown && (x.caption || '') === caption), 'Saved.');
+        waitForGames(list => list.some(x =>
+          x.id === g.id && x.title === shown && (x.caption || '') === caption &&
+          !!x.thumbnailChosen === !!thumbChoice && (!thumbChoice || x.thumbnail === thumbChoice)
+        ), 'Saved.');
       } catch (e) {
         save.disabled = cancel.disabled = false; save.textContent = 'Save';
         if (!handleAuthError(e, $('gamesListStatus'))) setStatus($('gamesListStatus'), e.message, 'error');
@@ -371,7 +409,7 @@
       if (e.key === 'Escape') renderGames();
     }));
     const hint = g.originalTitle ? el('span', { className: 'meta', textContent: `Leave the title empty to use "${g.originalTitle}".` }) : '';
-    body.replaceChildren(titleIn, capIn, hint, el('div', { className: 'row' }, [save, cancel]));
+    body.replaceChildren(titleIn, capIn, hint, pickerBlock, el('div', { className: 'row' }, [save, cancel]));
     titleIn.focus();
   }
 

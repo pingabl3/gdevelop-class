@@ -306,8 +306,11 @@ export function addGame(token, repo, branch, id, caption) {
   }, `Add top game: ${id}`);
 }
 
-/** Change a game's title (empty = use its gd.games name) and caption. */
-export function editGame(token, repo, branch, id, { title, caption }) {
+/**
+ * Change a game's title (empty = use its gd.games name), caption and
+ * thumbnail (a screenshot URL; empty = pick automatically).
+ */
+export function editGame(token, repo, branch, id, { title, caption, thumbnail }) {
   return saveConfig(token, repo, branch, cfg => ({
     ...cfg,
     games: (cfg.games || []).map(g => {
@@ -315,6 +318,8 @@ export function editGame(token, repo, branch, id, { title, caption }) {
       const next = { ...g, caption: caption || '' };
       if (title) next.title = title;
       else delete next.title;
+      if (thumbnail) next.thumbnail = thumbnail;
+      else delete next.thumbnail;
       return next;
     }),
   }), `Edit top game: ${id}`);
