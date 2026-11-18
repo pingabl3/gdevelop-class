@@ -343,3 +343,57 @@ export function removeGame(token, repo, branch, key) {
     games: (cfg.games || []).filter(g => gameKey(g) !== key),
   }), `Remove top game: ${key}`);
 }
+
+// ---------------------------------------------------------------------------
+// Help inbox: a Google Apps Script web app (helpdesk/Code.gs) that stores
+// students' projects privately in the teacher's Google Drive.
+
+async function inbox(url, body) {
+  let res;
+  try {
+    // text/plain keeps this a "simple" request, which Apps Script accepts from other sites.
+    res = await fetch(url, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+  } catch (e) {
+    throw new Error("Couldn't reach the help inbox. Check your internet connection and try again.");
+  }
+  let data;
+  try { data = await res.json(); } catch (e) { throw new Error('The help inbox sent an unexpected reply. Check its setup.'); }
+  if (!data.ok) {
+    const err = new Error(data.error || 'The help inbox reported an error.');
+    if (/teacher key/i.test(data.error || '')) err.badKey = true;
+    throw err;
+  }
+  return data;
+}
+
+function bufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+function base64ToBuffer(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+/** Student: send a project zip. Checks it's a real GDevelop project first. */
+export async function sendHelpRequest(url, JSZip, { name, message, zipBuffer }) {
+  const project = await readProjectZip(JSZip, zipBuffer); // throws a friendly error if it isn't a project
+  if (zipBuffer.byteLength > 30 * 1024 * 1024) throw new Error('This project is too big to send (over 30 MB).');
+  await inbox(url, { action: 'submit', name, message, projectName: project.name, data: bufferToBase64(zipBuffer) });
+  return project.name;
+}
+
+export const checkInboxKey = (url, key) => inbox(url, { action: 'check', key });
+export const listHelpRequests = async (url, key) => (await inbox(url, { action: 'list', key })).items;
+export const markHelpDone = (url, key, id) => inbox(url, { action: 'done', key, id });
+
+/** Teacher: download a request's zip. Returns { buffer, fileName }. */
+export async function getHelpZip(url, key, id) {
+  const data = await inbox(url, { action: 'get', key, id });
+  return { buffer: base64ToBuffer(data.data), fileName: data.fileName };
+}

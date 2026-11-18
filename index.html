@@ -53,7 +53,7 @@
   .btn.danger { background: transparent; color: var(--danger); border: 1px solid var(--border); }
   .btn:disabled { opacity: .5; cursor: default; }
   .linkbtn { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; font-size: .85rem; text-decoration: underline; cursor: pointer; }
-  input[type=text], input[type=password] {
+  input[type=text], input[type=password], textarea {
     width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--card); color: var(--text); font: inherit;
   }
@@ -73,6 +73,11 @@
   }
   .game .thumb.placeholder { display: grid; place-items: center; color: var(--muted); font-size: 2rem; }
   .game .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  textarea { resize: vertical; display: block; }
+  .requests { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+  .request { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .request .message { margin: 0; white-space: pre-wrap; background: var(--soft); border-radius: 8px; padding: 8px 10px; font-size: .92rem; }
+  .request .status { margin: 0; min-height: 0; }
   .caption { font-size: .82rem; font-weight: 600; color: var(--accent); }
   .picker { display: flex; flex-wrap: wrap; gap: 6px; }
   .picker button {
@@ -119,22 +124,45 @@
     </div>
 
     <div id="tools" hidden>
+      <h3>Help requests from students</h3>
+      <div id="helpSetup" hidden>
+        <p class="small">Students can send you their project when they need help. Their projects are saved privately in your Google Drive. This needs a one-time setup (about 5 minutes).</p>
+        <details class="small" open>
+          <summary>Set up the help inbox</summary>
+          <ol>
+            <li>Sign in to your school Google account, open <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com → New project</a>, and name it <em>GDevelop help inbox</em>.</li>
+            <li>Delete the code that's there, then paste in the inbox script: <button id="copyScript" class="btn secondary" type="button">Copy the script</button></li>
+            <li>Click <strong>Save</strong> (the disk icon). In the menu next to <strong>Run</strong>, choose <code>setup</code>, then click <strong>Run</strong>. Allow access when Google asks.</li>
+            <li>The <strong>Execution log</strong> shows a <strong>TEACHER KEY</strong>. Copy it into the box below.</li>
+            <li>Click <strong>Deploy → New deployment</strong>. Click the gear icon, choose <strong>Web app</strong>. Set <em>Execute as</em> to <strong>Me</strong> and <em>Who has access</em> to <strong>Anyone</strong>. Click <strong>Deploy</strong>.</li>
+            <li>Copy the <strong>Web app URL</strong> (it ends in <code>/exec</code>) into the box below, then click Save.</li>
+          </ol>
+          <p>If <em>Anyone</em> isn't offered in step 5, your school limits this. Tell Claude what options you see.</p>
+        </details>
+        <input id="inboxUrl" type="text" placeholder="Web app URL: https://script.google.com/macros/s/…/exec" style="margin-top:10px">
+        <div class="row" style="margin-top:8px">
+          <input id="inboxKey" type="password" placeholder="Teacher key" autocomplete="off" style="flex:1;min-width:200px">
+          <button id="saveInbox" class="btn">Save</button>
+        </div>
+        <p id="inboxSetupStatus" class="status"></p>
+      </div>
+      <div id="helpInbox" hidden>
+        <div class="row">
+          <button id="refreshHelp" class="btn secondary">Refresh</button>
+          <span class="small">Done requests move to the <em>Done</em> folder in your Drive's <em>GDevelop help requests</em> folder.</span>
+        </div>
+        <p id="helpStatus" class="status"></p>
+        <div id="helpList" class="requests"></div>
+        <p class="small"><button id="inboxSettings" class="linkbtn">Help inbox settings</button></p>
+      </div>
+
       <h3>Add a project</h3>
-      <p class="small">In GDevelop: <strong>File → Save as → Download a copy</strong>. Then drop the .zip here.</p>
+      <p class="small">In GDevelop: <strong>File → Save as → Download a copy</strong>. Then drop the .zip here. It becomes public on this page.</p>
       <label id="drop" class="drop">
         <input id="zip" type="file" accept=".zip,application/zip" hidden>
         <strong>Choose a .zip</strong> or drag it here
       </label>
       <p id="uploadStatus" class="status"></p>
-
-      <h3>Open a student's project (private)</h3>
-      <p class="small">Download the student's .zip from Google Classroom, then drop it here. It opens in GDevelop and is <strong>not</strong> added to this page.</p>
-      <label id="sdrop" class="drop">
-        <input id="szip" type="file" accept=".zip,application/zip" hidden>
-        <strong>Choose a student's .zip</strong> or drag it here
-      </label>
-      <p id="studentStatus" class="status"></p>
-      <div class="row"><a id="studentOpen" class="btn" href="#" target="_blank" rel="noopener" hidden>Open in GDevelop</a></div>
 
       <h3>Add a top game from a previous student</h3>
       <p class="small">Paste the game's gd.games link. Its name, description and screenshot are filled in automatically. Add a caption if you like, such as "Year 11, 2025".</p>
@@ -144,14 +172,6 @@
         <button id="addGame" class="btn">Add game</button>
       </div>
       <p id="gameStatus" class="status"></p>
-
-      <h3>Hand-in link for students</h3>
-      <p class="small">Paste the link to your Google Classroom assignment (or Google Form). Students see a <em>Hand in</em> button with instructions. Leave it empty to hide the button.</p>
-      <div class="row">
-        <input id="handIn" type="text" placeholder="https://classroom.google.com/c/…/a/…" style="flex:1;min-width:200px">
-        <button id="saveHandIn" class="btn">Save</button>
-      </div>
-      <p id="handInStatus" class="status"></p>
 
       <h3>Make a link to any game.json</h3>
       <input id="src" type="text" placeholder="https://github.com/…/blob/main/projects/my-game/game.json">
@@ -174,13 +194,25 @@
     </ol>
   </div>
 
-  <div id="handInPanel" class="panel" hidden>
-    <strong>Students: handing in your project</strong>
-    <ol>
-      <li>In GDevelop, open your project and choose <strong>File → Save as → Download a copy</strong>.</li>
-      <li>Click <em>Hand in</em> below and attach the .zip file. Only your teacher can see it.</li>
-    </ol>
-    <div class="row" style="margin-top:10px"><a id="handInLink" class="btn" href="#" target="_blank" rel="noopener">Hand in</a></div>
+  <div id="helpPanel" class="panel" hidden>
+    <div class="row" style="justify-content:space-between">
+      <strong>Students: stuck? Send your project to your teacher</strong>
+      <button id="helpToggle" class="btn">Ask for help</button>
+    </div>
+    <div id="helpForm" hidden>
+      <ol>
+        <li>In GDevelop, open your project and choose <strong>File → Save as → Download a copy</strong>. This saves a .zip file.</li>
+        <li>Fill in the boxes below, choose that .zip, and click <strong>Send to my teacher</strong>. Only your teacher can see it.</li>
+      </ol>
+      <input id="helpName" type="text" placeholder="Your name" maxlength="60" autocomplete="name">
+      <textarea id="helpMessage" rows="3" maxlength="1000" placeholder="What do you need help with? For example: my player falls through the platforms in level 2." style="margin-top:8px"></textarea>
+      <label id="helpDrop" class="drop" style="margin-top:8px">
+        <input id="helpZip" type="file" accept=".zip,application/zip" hidden>
+        <span id="helpZipLabel"><strong>Choose your .zip</strong> or drag it here</span>
+      </label>
+      <div class="row" style="margin-top:10px"><button id="helpSend" class="btn">Send to my teacher</button></div>
+      <p id="helpSendStatus" class="status"></p>
+    </div>
   </div>
 
   <h2>Projects</h2>
@@ -200,6 +232,7 @@
   import {
     readProjectZip, checkToken, addProject, removeProject,
     packProjectZip, createTempGist, deleteGist, cleanupTempGists, saveConfig, renameProject,
+    sendHelpRequest, checkInboxKey, listHelpRequests, markHelpDone, getHelpZip,
     gameRefFromLink, addGame, editGame, removeGame,
   } from './admin.js';
 
@@ -505,11 +538,13 @@
     $('tools').hidden = !isTeacher();
     render();
     renderGames();
+    showHelp();
   }
 
   $('teacherToggle').onclick = () => {
     $('teacher').hidden = !$('teacher').hidden;
     $('teacherToggle').textContent = $('teacher').hidden ? 'Teacher' : 'Close teacher tools';
+    if (!$('teacher').hidden && isTeacher() && inboxUrl() && inboxKey) loadHelp();
   };
 
   $('saveToken').onclick = async () => {
@@ -590,60 +625,216 @@
     }
   }
 
-  // ---------- Open a student's project privately ----------
-  let studentBusy = false;
-  async function onStudentZip(file) {
-    if (!file || studentBusy) return;
-    const status = $('studentStatus'), openBtn = $('studentOpen');
-    openBtn.hidden = true;
-    if (!/\.zip$/i.test(file.name)) { setStatus(status, 'Please choose a .zip file.', 'error'); return; }
-    studentBusy = true;
+  // ---------- Help inbox ----------
+  const INBOX_KEY = 'gdclass-inbox-key';
+  let config = {};
+  let inboxKey = '';
+  try { inboxKey = localStorage.getItem(INBOX_KEY) || ''; } catch (e) {}
+  const inboxUrl = () => (config.helpInboxUrl || '').trim();
+
+  function timeAgo(iso) {
+    const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (!isFinite(mins)) return '';
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs} hr${hrs === 1 ? '' : 's'} ago`;
+    return formatDate(iso);
+  }
+  const sizeText = n => n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+
+  // Which parts show: students see the form once the inbox is set up;
+  // the teacher sees the list once the URL and key are both saved.
+  function showHelp() {
+    $('helpPanel').hidden = !inboxUrl();
+    const ready = !!(inboxUrl() && inboxKey);
+    $('helpSetup').hidden = ready;
+    $('helpInbox').hidden = !ready;
+    $('inboxUrl').value = inboxUrl();
+    if (ready && isTeacher() && !$('teacher').hidden) loadHelp();
+  }
+
+  // --- Teacher: setup ---
+  $('copyScript').onclick = async () => {
     try {
-      setStatus(status, `Reading ${file.name}…`);
-      const packed = await packProjectZip(window.JSZip, await file.arrayBuffer());
-      setStatus(status, `Preparing "${packed.name}"…`);
-      const gist = await createTempGist(token, packed.name, packed.text);
-      const warn = packed.missing.length ? ` ${packed.missing.length} file(s) weren't in the zip, so some images or sounds may be missing.` : '';
-      setStatus(status, `"${packed.name}" is ready.${warn}`, packed.missing.length ? 'error' : 'ok');
-      openBtn.href = editorLink(gist.url);
-      openBtn.hidden = false;
-      // Delete the temporary copy once GDevelop has had time to load it.
-      openBtn.onclick = () => {
-        setTimeout(() => deleteGist(token, gist.id).catch(() => {}), 120000);
-        setTimeout(() => { openBtn.hidden = true; setStatus(status, `Opened "${packed.name}". The temporary copy is deleted after 2 minutes.`, 'ok'); }, 300);
-      };
+      const res = await fetch('helpdesk/Code.gs?t=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error();
+      await copy(await res.text(), $('copyScript'));
+    } catch (e) {
+      window.open('https://github.com/' + manifest.repo + '/blob/main/helpdesk/Code.gs', '_blank', 'noopener');
+    }
+  };
+  $('inboxSettings').onclick = () => { $('helpSetup').hidden = false; $('helpInbox').hidden = true; };
+
+  $('saveInbox').onclick = async () => {
+    const status = $('inboxSetupStatus');
+    const url = $('inboxUrl').value.trim();
+    const key = $('inboxKey').value.trim() || inboxKey;
+    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) {
+      setStatus(status, 'The Web app URL should start with https://script.google.com/ and end with /exec.', 'error'); return;
+    }
+    if (!key) { setStatus(status, 'Paste the teacher key from the Execution log.', 'error'); return; }
+    setStatus(status, 'Checking…');
+    try {
+      await checkInboxKey(url, key);
+    } catch (e) {
+      setStatus(status, e.badKey ? "The inbox works, but that teacher key isn't right." : e.message + ' Make sure "Who has access" is set to Anyone.', 'error');
+      return;
+    }
+    inboxKey = key;
+    try { localStorage.setItem(INBOX_KEY, key); } catch (e) {}
+    $('inboxKey').value = '';
+    try {
+      if (url !== inboxUrl()) {
+        setStatus(status, 'Saving…');
+        config = await saveConfig(token, manifest.repo, manifest.branch, cfg => {
+          const next = { ...cfg, helpInboxUrl: url };
+          delete next.handInUrl; // old Google Classroom setting
+          return next;
+        });
+      }
+      setStatus(status, '');
+      showHelp();
+      setStatus($('helpStatus'), 'Help inbox connected. Students will see the "Ask for help" button in about a minute.', 'ok');
     } catch (e) {
       if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
+    }
+  };
+
+  // --- Teacher: list of requests ---
+  let helpLoading = false;
+  async function loadHelp() {
+    if (helpLoading) return;
+    helpLoading = true;
+    const status = $('helpStatus'), list = $('helpList');
+    setStatus(status, 'Loading…');
+    try {
+      const items = await listHelpRequests(inboxUrl(), inboxKey);
+      setStatus(status, items.length ? '' : 'No help requests right now.');
+      list.textContent = '';
+      items.forEach(item => list.append(renderRequest(item)));
+    } catch (e) {
+      if (e.badKey) {
+        inboxKey = '';
+        try { localStorage.removeItem(INBOX_KEY); } catch (err) {}
+        showHelp();
+        setStatus($('inboxSetupStatus'), 'The teacher key was rejected. Paste it again.', 'error');
+      } else setStatus(status, e.message, 'error');
     } finally {
-      studentBusy = false;
-      $('szip').value = '';
+      helpLoading = false;
     }
   }
-  $('szip').onchange = e => onStudentZip(e.target.files[0]);
-  const sdrop = $('sdrop');
-  sdrop.addEventListener('dragover', e => { e.preventDefault(); sdrop.classList.add('over'); });
-  sdrop.addEventListener('dragleave', () => sdrop.classList.remove('over'));
-  sdrop.addEventListener('drop', e => { e.preventDefault(); sdrop.classList.remove('over'); onStudentZip(e.dataTransfer.files[0]); });
+  $('refreshHelp').onclick = loadHelp;
 
-  // ---------- Hand-in link ----------
-  let config = {};
-  function showHandIn() {
-    const url = (config.handInUrl || '').trim();
-    $('handInPanel').hidden = !url;
-    if (url) $('handInLink').href = url;
-    $('handIn').value = url;
+  function renderRequest(item) {
+    const status = el('p', { className: 'status' });
+    const open = el('button', { className: 'btn', textContent: 'Open in GDevelop' });
+    const dl = el('button', { className: 'btn secondary', textContent: 'Download .zip' });
+    const done = el('button', { className: 'btn secondary', textContent: 'Mark done' });
+    const row = el('div', { className: 'request' }, [
+      el('div', { className: 'row', style: 'justify-content:space-between' }, [
+        el('strong', { textContent: item.name || 'Unknown student' }),
+        el('span', { className: 'meta', textContent: `${timeAgo(item.sent)} · ${sizeText(item.size)}` }),
+      ]),
+      el('span', { className: 'meta', textContent: item.projectName ? `Project: ${item.projectName}` : '' }),
+      item.message ? el('p', { className: 'message', textContent: item.message }) : '',
+      el('div', { className: 'row' }, [open, dl, done]),
+      status,
+    ]);
+
+    open.onclick = async () => {
+      // Open the tab now (while it still counts as a click) so it isn't blocked as a pop-up.
+      const tab = window.open('about:blank', '_blank');
+      open.disabled = true;
+      try {
+        setStatus(status, 'Downloading…');
+        const { buffer } = await getHelpZip(inboxUrl(), inboxKey, item.id);
+        setStatus(status, 'Preparing…');
+        const packed = await packProjectZip(window.JSZip, buffer);
+        const gist = await createTempGist(token, packed.name, packed.text);
+        const link = editorLink(gist.url);
+        if (tab) tab.location.href = link;
+        else window.open(link, '_blank');
+        setTimeout(() => deleteGist(token, gist.id).catch(() => {}), 120000);
+        const warn = packed.missing.length ? ` ${packed.missing.length} file(s) were missing from the zip.` : '';
+        setStatus(status, `Opened in a new tab.${warn}`, packed.missing.length ? 'error' : 'ok');
+      } catch (e) {
+        if (tab) tab.close();
+        if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
+      } finally {
+        open.disabled = false;
+      }
+    };
+
+    dl.onclick = async () => {
+      dl.disabled = true;
+      try {
+        setStatus(status, 'Downloading…');
+        const { buffer, fileName } = await getHelpZip(inboxUrl(), inboxKey, item.id);
+        const a = el('a', { href: URL.createObjectURL(new Blob([buffer], { type: 'application/zip' })), download: fileName || 'project.zip' });
+        document.body.append(a); a.click(); a.remove();
+        setStatus(status, '');
+      } catch (e) {
+        setStatus(status, e.message, 'error');
+      } finally {
+        dl.disabled = false;
+      }
+    };
+
+    done.onclick = async () => {
+      done.disabled = true;
+      try {
+        await markHelpDone(inboxUrl(), inboxKey, item.id);
+        row.remove();
+        if (!$('helpList').children.length) setStatus($('helpStatus'), 'No help requests right now.');
+      } catch (e) {
+        done.disabled = false;
+        setStatus(status, e.message, 'error');
+      }
+    };
+    return row;
   }
-  $('saveHandIn').onclick = async () => {
-    const url = $('handIn').value.trim();
-    const status = $('handInStatus');
-    if (url && !/^https:\/\//.test(url)) { setStatus(status, 'The link should start with https://', 'error'); return; }
-    setStatus(status, 'Saving…');
+
+  // --- Student: send a project ---
+  $('helpToggle').onclick = () => {
+    $('helpForm').hidden = !$('helpForm').hidden;
+    $('helpToggle').textContent = $('helpForm').hidden ? 'Ask for help' : 'Close';
+  };
+  try { $('helpName').value = localStorage.getItem('gdclass-student-name') || ''; } catch (e) {}
+
+  let helpFile = null;
+  function chooseHelpFile(file) {
+    if (!file) return;
+    helpFile = file;
+    $('helpZipLabel').textContent = `Chosen: ${file.name}`;
+    setStatus($('helpSendStatus'), '');
+  }
+  $('helpZip').onchange = e => chooseHelpFile(e.target.files[0]);
+  const helpDrop = $('helpDrop');
+  helpDrop.addEventListener('dragover', e => { e.preventDefault(); helpDrop.classList.add('over'); });
+  helpDrop.addEventListener('dragleave', () => helpDrop.classList.remove('over'));
+  helpDrop.addEventListener('drop', e => { e.preventDefault(); helpDrop.classList.remove('over'); chooseHelpFile(e.dataTransfer.files[0]); });
+
+  $('helpSend').onclick = async () => {
+    const status = $('helpSendStatus');
+    const name = $('helpName').value.trim();
+    const message = $('helpMessage').value.trim();
+    if (!name) { setStatus(status, 'Please type your name.', 'error'); $('helpName').focus(); return; }
+    if (!helpFile) { setStatus(status, 'Please choose your project .zip file.', 'error'); return; }
+    if (!/\.zip$/i.test(helpFile.name)) { setStatus(status, 'Please choose a .zip file (File → Save as → Download a copy in GDevelop).', 'error'); return; }
+    $('helpSend').disabled = true;
+    setStatus(status, 'Sending… this can take a few seconds.');
     try {
-      config = await saveConfig(token, manifest.repo, manifest.branch, cfg => ({ ...cfg, handInUrl: url }));
-      showHandIn();
-      setStatus(status, url ? 'Saved. Students will see the Hand in button in about a minute.' : 'Saved. The Hand in button will disappear in about a minute.', 'ok');
+      const projectName = await sendHelpRequest(inboxUrl(), window.JSZip, { name, message, zipBuffer: await helpFile.arrayBuffer() });
+      try { localStorage.setItem('gdclass-student-name', name); } catch (e) {}
+      setStatus(status, `Sent "${projectName}" to your teacher.`, 'ok');
+      $('helpMessage').value = '';
+      helpFile = null; $('helpZip').value = '';
+      $('helpZipLabel').innerHTML = '<strong>Choose your .zip</strong> or drag it here';
     } catch (e) {
-      if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
+      setStatus(status, e.message, 'error');
+    } finally {
+      $('helpSend').disabled = false;
     }
   };
 
@@ -669,7 +860,7 @@
   fetch('config.json?t=' + Date.now(), { cache: 'no-store' })
     .then(r => (r.ok ? r.json() : {}))
     .catch(() => ({}))
-    .then(c => { config = c || {}; showHandIn(); });
+    .then(c => { config = c || {}; showHelp(); });
 
   loadManifest()
     .then(m => {

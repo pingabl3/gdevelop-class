@@ -33,20 +33,38 @@ GitHub fetches the game's name, description and first screenshot from gd.games. 
 refresh once a day. On each game card, **Edit** changes the title or caption, and **Remove** takes
 it off the page. Removing it here doesn't touch the game on gd.games. Games are stored in `config.json`.
 
-## Students handing work in (private)
+## Help requests from students (private)
 
-Student work never goes into this public repository.
+Students who are stuck click **Ask for help** on the class page. They type their name and what they
+need help with, choose their project zip (*File → Save as → Download a copy* in GDevelop), and click
+**Send to my teacher**.
 
-1. Make a Google Classroom assignment (or Google Form with a file upload) for the hand-in.
-2. In the Teacher panel, paste its link under **Hand-in link for students** and click Save.
-   Students now see a **Hand in** button with instructions: *Download a copy* in GDevelop, then attach the zip.
-3. To look at a submission, download the student's zip from Classroom and drop it on
-   **Open a student's project (private)**. Click **Open in GDevelop**.
+Each request is saved privately in **your Google Drive**, in a folder called *GDevelop help requests*.
+It never goes into this public repository. The Teacher panel lists requests, newest first. Each one has:
 
-To open it, the page packs the project into one file and puts it in a **secret gist** on your
-GitHub account (not listed anywhere). The gist is deleted 2 minutes after you click Open, and
-any leftover copies are deleted the next time you open the Teacher panel.
-This needs your token to have **Gists: Read and write**.
+- **Open in GDevelop**: opens the student's full project in a new tab;
+- **Download .zip**: saves their zip to your computer;
+- **Mark done**: moves it to the *Done* folder in Drive (nothing is deleted).
+
+### One-time setup
+
+The inbox is a small Google Apps Script ([`helpdesk/Code.gs`](helpdesk/Code.gs)) that runs under your
+Google account. The Teacher panel walks you through it:
+
+1. At [script.google.com](https://script.google.com), create a new project and paste in `Code.gs`.
+2. Run the `setup` function once and allow access. The log shows your **teacher key**.
+3. **Deploy → New deployment → Web app**, with *Execute as: Me* and *Who has access: Anyone*.
+4. In the Teacher panel, paste the Web app URL and the teacher key, then click Save.
+
+The teacher key is saved only in your browser. Without it, nobody can list or download requests;
+anyone can only *send* one. If the key ever leaks, run `newTeacherKey` in the script and paste the new key in.
+
+### How "Open in GDevelop" works
+
+GDevelop's web editor can only open a project from a web address. So the page packs the project
+into one file and puts it in a **secret gist** on your GitHub account, which isn't listed anywhere.
+The gist is deleted 2 minutes after opening, and any leftover copies are deleted the next time you
+open the class page. This needs your GitHub token to have **Gists: Read and write**.
 
 ## What students do
 
