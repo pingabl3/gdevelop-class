@@ -17,6 +17,17 @@ repo = os.environ.get("GITHUB_REPOSITORY", "OWNER/REPO")
 branch = os.environ.get("GITHUB_REF_NAME", "main")
 raw_base = f"https://raw.githubusercontent.com/{repo}/{branch}/"
 
+def last_commit(folder: Path) -> str:
+    """ID of the last commit touching this folder (needs full git history)."""
+    try:
+        return subprocess.run(
+            ["git", "log", "-1", "--format=%H", "--", str(folder)],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except Exception:
+        return ""
+
+
 def last_changed(folder: Path) -> str:
     """Date of the last commit touching this folder (needs full git history)."""
     try:
@@ -54,7 +65,10 @@ for game_json in sorted(PROJECTS_DIR.rglob("*.json")):
             "folder": folder,
             "scenes": len(data.get("layouts", [])),
             "updated": last_changed(game_json.parent),
-            "projectUrl": raw_base + quote(rel),
+            # Pin the link to the commit that last changed this project. Students'
+            # saved copies keep pointing at these image/sound addresses, so they must
+            # never change or disappear, even if the project is later updated or removed.
+            "projectUrl": f"https://raw.githubusercontent.com/{repo}/{last_commit(game_json.parent) or branch}/" + quote(rel),
         }
     )
 

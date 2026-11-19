@@ -37,6 +37,7 @@ jobs:
           cp index.html admin.js projects.json games.json _site/
           if [ -f config.json ]; then cp config.json _site/; fi
           mkdir -p _site/helpdesk && cp helpdesk/Code.gs _site/helpdesk/
+          cp open.html _site/
           # Make browsers load the new admin.js after each update instead of a cached one.
           sed -i "s#'./admin.js'#'./admin.js?v=${GITHUB_SHA::7}'#" _site/index.html
           grep -q "admin.js?v=" _site/index.html

@@ -66,6 +66,20 @@ into one file and puts it in a **secret gist** on your GitHub account, which isn
 The gist is deleted 2 minutes after opening, and any leftover copies are deleted the next time you
 open the class page. This needs your GitHub token to have **Gists: Read and write**.
 
+## Sending a project back to a student (private link)
+
+After helping a student, in GDevelop choose **File → Save as → Download a copy**. In the Teacher panel,
+drop that zip on **Send a project back to a student**. Type the student's name (for your list) and check
+the project name, which is filled in as "<name> v2". Then click **Create private link**, copy the link
+and send it to the student.
+
+The link opens a page that shows the project name with steps: log in to GDevelop, click
+**Open in GDevelop**, then **File → Save as → GDevelop Cloud**. The project isn't shown on the class
+page and isn't listed anywhere; only people with the link can open it. It's stored as a secret gist
+on your GitHub account, with its images and sounds packed inside, so the student's saved copy never
+depends on the link. **Private links you've sent** lists them, with **Copy link** and **Delete**.
+Deleting a link doesn't affect copies students already saved.
+
 ## What students do
 
 1. Log in at editor.gdevelop.io.

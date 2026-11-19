@@ -156,6 +156,33 @@
         <p class="small"><button id="inboxSettings" class="linkbtn">Help inbox settings</button></p>
       </div>
 
+      <h3>Send a project back to a student (private link)</h3>
+      <p class="small">After you've made changes: in GDevelop choose <strong>File → Save as → Download a copy</strong>, then drop that .zip here. You get a private link to send the student. It isn't shown on this page; only people with the link can open it.</p>
+      <label id="backDrop" class="drop">
+        <input id="backZip" type="file" accept=".zip,application/zip" hidden>
+        <span id="backZipLabel"><strong>Choose the .zip</strong> or drag it here</span>
+      </label>
+      <div id="backForm" hidden>
+        <div class="row" style="margin-top:8px">
+          <input id="backStudent" type="text" placeholder="Student's name (for your list)" maxlength="60" style="flex:1;min-width:180px">
+          <input id="backName" type="text" placeholder="Project name" maxlength="100" style="flex:1;min-width:180px">
+        </div>
+        <div class="row" style="margin-top:8px"><button id="backCreate" class="btn">Create private link</button></div>
+      </div>
+      <div id="backResult" class="request" style="margin-top:10px" hidden>
+        <strong>Private link ready. Send it to the student:</strong>
+        <div class="row">
+          <input id="backLink" type="text" readonly style="flex:1;min-width:200px">
+          <button id="backCopy" class="btn">Copy link</button>
+        </div>
+      </div>
+      <p id="backStatus" class="status"></p>
+      <details id="sharedBox" class="small">
+        <summary>Private links you've sent</summary>
+        <p id="sharedStatus" class="status"></p>
+        <div id="sharedList" class="requests"></div>
+      </details>
+
       <h3>Add a project</h3>
       <p class="small">In GDevelop: <strong>File → Save as → Download a copy</strong>. Then drop the .zip here. It becomes public on this page.</p>
       <label id="drop" class="drop">
@@ -232,6 +259,7 @@
     readProjectZip, checkToken, addProject, removeProject,
     packProjectZip, createTempGist, deleteGist, cleanupTempGists, saveConfig, renameProject,
     sendHelpRequest, checkInboxKey, listHelpRequests, markHelpDone, getHelpZip,
+    createSharedProject, listSharedProjects,
     gameRefFromLink, addGame, editGame, removeGame,
   } from './admin.js';
 
@@ -836,6 +864,104 @@
       $('helpSend').disabled = false;
     }
   };
+
+  // ---------- Send a project back to a student (private link) ----------
+  let backPacked = null;
+  const privateLink = (owner, id) => new URL('open.html', location.href.split('#')[0].split('?')[0]).href + '#' + owner + '/' + id;
+  const nextVersionName = name => {
+    const m = name.match(/^(.*?)\s*v(\d+)$/i);
+    return m ? `${m[1]} v${Number(m[2]) + 1}` : `${name} v2`;
+  };
+
+  async function chooseBackZip(file) {
+    if (!file) return;
+    const status = $('backStatus');
+    $('backResult').hidden = true;
+    if (!/\.zip$/i.test(file.name)) { setStatus(status, 'Please choose a .zip file.', 'error'); return; }
+    setStatus(status, `Reading ${file.name}…`);
+    try {
+      backPacked = await readyPack(file);
+      $('backZipLabel').textContent = `Chosen: ${file.name}`;
+      $('backName').value = nextVersionName(backPacked.name);
+      $('backForm').hidden = false;
+      const warn = backPacked.missing.length ? ` ${backPacked.missing.length} file(s) weren't in the zip, so some images or sounds may be missing.` : '';
+      setStatus(status, `Ready to share "${backPacked.name}".${warn}`, backPacked.missing.length ? 'error' : '');
+      $('backStudent').focus();
+    } catch (e) {
+      backPacked = null;
+      $('backForm').hidden = true;
+      setStatus(status, e.message, 'error');
+    } finally {
+      $('backZip').value = '';
+    }
+  }
+  const readyPack = async file => packProjectZip(window.JSZip, await file.arrayBuffer());
+
+  $('backZip').onchange = e => chooseBackZip(e.target.files[0]);
+  const backDrop = $('backDrop');
+  backDrop.addEventListener('dragover', e => { e.preventDefault(); backDrop.classList.add('over'); });
+  backDrop.addEventListener('dragleave', () => backDrop.classList.remove('over'));
+  backDrop.addEventListener('drop', e => { e.preventDefault(); backDrop.classList.remove('over'); chooseBackZip(e.dataTransfer.files[0]); });
+
+  $('backCreate').onclick = async () => {
+    const status = $('backStatus');
+    if (!backPacked) return;
+    const student = $('backStudent').value.trim();
+    const name = $('backName').value.trim() || backPacked.name;
+    if (!student) { setStatus(status, "Type the student's name so you can find this link later.", 'error'); $('backStudent').focus(); return; }
+    $('backCreate').disabled = true;
+    setStatus(status, 'Creating the link…');
+    try {
+      const { id, owner } = await createSharedProject(token, { student, name, text: backPacked.text });
+      $('backLink').value = privateLink(owner, id);
+      $('backResult').hidden = false;
+      $('backForm').hidden = true;
+      $('backZipLabel').innerHTML = '<strong>Choose the .zip</strong> or drag it here';
+      backPacked = null;
+      $('backStudent').value = '';
+      setStatus(status, `Made a private link to "${name}" for ${student}.`, 'ok');
+      if ($('sharedBox').open) loadShared();
+    } catch (e) {
+      if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
+    } finally {
+      $('backCreate').disabled = false;
+    }
+  };
+  $('backCopy').onclick = () => copy($('backLink').value, $('backCopy'));
+
+  async function loadShared() {
+    const status = $('sharedStatus'), list = $('sharedList');
+    setStatus(status, 'Loading…');
+    try {
+      const items = await listSharedProjects(token);
+      list.textContent = '';
+      setStatus(status, items.length ? '' : "You haven't sent any private links yet.");
+      items.forEach(item => {
+        const link = privateLink(item.owner, item.id);
+        const copyBtn = el('button', { className: 'btn secondary', textContent: 'Copy link' });
+        copyBtn.onclick = () => copy(link, copyBtn);
+        const del = el('button', { className: 'btn danger', textContent: 'Delete' });
+        const row = el('div', { className: 'request' }, [
+          el('div', { className: 'row', style: 'justify-content:space-between' }, [
+            el('strong', { textContent: item.student || 'Unknown student' }),
+            el('span', { className: 'meta', textContent: formatDate(item.made) }),
+          ]),
+          el('span', { className: 'meta', textContent: item.name }),
+          el('div', { className: 'row' }, [copyBtn, del]),
+        ]);
+        del.onclick = async () => {
+          if (!confirm(`Delete the private link to "${item.name}" for ${item.student}?\n\nThe link will stop working. A copy the student already saved in GDevelop is not affected.`)) return;
+          del.disabled = true;
+          try { await deleteGist(token, item.id); row.remove(); if (!list.children.length) setStatus(status, "You haven't sent any private links yet."); }
+          catch (e) { del.disabled = false; setStatus(status, e.message, 'error'); }
+        };
+        list.append(row);
+      });
+    } catch (e) {
+      if (!handleAuthError(e, status)) setStatus(status, e.message, 'error');
+    }
+  }
+  $('sharedBox').addEventListener('toggle', () => { if ($('sharedBox').open) loadShared(); });
 
   // ---------- Make a link ----------
   function toRaw(input) {

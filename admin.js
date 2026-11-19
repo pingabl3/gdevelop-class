@@ -397,3 +397,52 @@ export async function getHelpZip(url, key, id) {
   const data = await inbox(url, { action: 'get', key, id });
   return { buffer: base64ToBuffer(data.data), fileName: data.fileName };
 }
+
+// ---------------------------------------------------------------------------
+// Private links: send a project back to one student (for example, after you fixed
+// something). The project is packed into one file and kept in a secret gist on the
+// teacher's GitHub account. It isn't listed anywhere; only people with the link can open it.
+
+const SHARED_PREFIX = 'gdclass-shared: ';
+
+/** Make a private link. Returns { id, owner }. */
+export async function createSharedProject(token, { student, name, text }) {
+  const project = JSON.parse(text);
+  project.properties = { ...(project.properties || {}), name };
+  let gist;
+  try {
+    gist = await gh(token, 'POST', '/gists', {
+      public: false,
+      description: SHARED_PREFIX + JSON.stringify({ student, name, made: new Date().toISOString() }),
+      files: { 'game.json': { content: JSON.stringify(project) } },
+    });
+  } catch (e) {
+    if (e.status === 403 || e.status === 404) {
+      const err = new Error('Your token needs the Gists permission (Read and write). Make a new token with it and paste it in.');
+      err.status = 403;
+      throw err;
+    }
+    if (e.status === 422) throw new Error('This project is too big to share this way.');
+    throw e;
+  }
+  return { id: gist.id, owner: gist.owner.login };
+}
+
+/** The private links made so far, newest first. */
+export async function listSharedProjects(token) {
+  const out = [];
+  for (let page = 1; page <= 5; page++) {
+    const gists = await gh(token, 'GET', `/gists?per_page=100&page=${page}`);
+    for (const g of gists) {
+      if (!(g.description || '').startsWith(SHARED_PREFIX)) continue;
+      let meta = {};
+      try { meta = JSON.parse(g.description.slice(SHARED_PREFIX.length)); } catch (e) {}
+      out.push({ id: g.id, owner: g.owner.login, student: meta.student || '', name: meta.name || '', made: meta.made || g.created_at });
+    }
+    if (gists.length < 100) break;
+  }
+  return out.sort((a, b) => (a.made < b.made ? 1 : -1));
+}
+
+/** Where a private link's project file lives (always the latest version). */
+export const sharedProjectFileUrl = (owner, id) => `https://gist.githubusercontent.com/${owner}/${id}/raw/game.json`;
