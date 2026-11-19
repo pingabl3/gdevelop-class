@@ -3,7 +3,7 @@
 A place to share **editable** GDevelop projects (events, behaviours, objects, assets) with students.
 Each project gets a link that opens it directly in the GDevelop web editor.
 
-**Class page:** https://pingabl3.github.io/gdevelop-class/
+**Class page:** `https://<your-github-username>.github.io/<repository-name>/` (for example https://pingabl3.github.io/gdevelop-class/)
 
 > ⚠️ This repository is **public**. Use it for starter projects, examples and exemplars, not student work.
 
@@ -91,7 +91,7 @@ Deleting a link doesn't affect copies students already saved.
 Every link has this form:
 
 ```
-https://editor.gdevelop.io/?project=https://raw.githubusercontent.com/pingabl3/gdevelop-class/main/projects/FOLDER/game.json
+https://editor.gdevelop.io/?project=https://raw.githubusercontent.com/<username>/<repository-name>/main/projects/FOLDER/game.json
 ```
 
 The "Make a link" box on the class page builds these for you.
