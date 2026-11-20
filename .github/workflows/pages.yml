@@ -18,13 +18,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  # Build and publish are separate jobs (GitHub's recommended setup). Doing both in
+  # one job sometimes failed with "No artifacts named github-pages were found".
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Install image tools
@@ -42,8 +41,16 @@ jobs:
           sed -i "s#'./admin.js'#'./admin.js?v=${GITHUB_SHA::7}'#" _site/index.html
           grep -q "admin.js?v=" _site/index.html
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
